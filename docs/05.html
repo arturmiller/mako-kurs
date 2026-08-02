@@ -1,1 +1,423 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'05',minutes:14,title:'Lieferbeginn beim Einzug',lede:'Ein Kundenvertrag wird nicht durch Speichern automatisch zu einer bestätigten Marktzuordnung.',objectives:['Vertrag, Prozess und Zuordnung getrennt führen','Bestätigung und Ablehnung als fachliche Ergebnisse behandeln','Startdatum und Systemzeit auseinanderhalten'],chapters:[{title:'Drei Wahrheiten',html:'<div class="flow"><div class="node">Vertrag<br><small>vereinbart</small></div><span class="arrow">→</span><div class="node">Prozess<br><small>beantragt</small></div><span class="arrow">→</span><div class="node">Zuordnung<br><small>bestätigt</small></div></div><p>Das CRM kennt eine Kundenabsicht. Die Marktkommunikation koordiniert sie. Erst das fachliche Ergebnis schafft eine bestätigte Zuordnung – möglicherweise mit Abweichung oder Ablehnung.</p>'},{title:'Zeit statt Boolean',html:'<pre class="model">SupplyStartProcess { requestedAt, requestedFrom, state }\nSupplierAssignment { marketLocationId, supplierId, validFrom, validTo, source }</pre><p class="callout"><code>isActive</code> verliert Zukunft, Historie und Korrekturen. Nutze Intervalle und fachliche Ereignisse.</p>'}],quiz:[{question:'Der Kunde unterschreibt. Ist die Marktzuordnung damit bestätigt?',options:['Ja, sofort','Nein, Vertrag und Marktzuordnung sind getrennt','Nur wenn die Rechnung existiert'],answer:1},{question:'Ist eine Ablehnung ein technischer Fehler?',options:['Immer','Nein, sie ist ein erwartbares fachliches Ergebnis','Sie darf nicht gespeichert werden'],answer:1}],task:{title:'Entwirf die Zustandsmaschine',prompt:'Nenne robuste Zustände für den Lieferbeginn.',answer:'<pre class="model">draft → requested → confirmed\n                 ↘ rejected → clarification → requested</pre><p>Technische Versandfehler liegen separat, damit fachlicher Zustand und Transportzustand nicht vermischt werden.</p>'},sources:[['Bundesnetzagentur: GPKE','https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/831_gpke/gpke_basepage.html'],['Bundesnetzagentur: BK6-22-024','https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2022/BK6-22-024/BK6-22-024_Verfahren.html']],prev:'04',next:'06'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zum Lieferbeginn beim Einzug: Vertrag, Marktzuordnung, GPKE-Prozess, Grundversorgung, Fehlerfälle und Softwarearchitektur." />
+  <title>Lektion 5 – Lieferbeginn beim Einzug</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#2457d6;--accent2:#7a3ee6;--accent3:#0f766e;--soft:#eaf1ff;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 90% 10%,rgba(255,255,255,.18),transparent 28%),linear-gradient(135deg,#101b37 0%,#2353c7 52%,#7439d8 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1030px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.45rem);line-height:1.02;max-width:920px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:850px;color:rgba(255,255,255,.89);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(244,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,43px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#1d4ed8;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}
+    .success{border-left-color:var(--accent3);background:#e8f7f4;color:#115e59}
+    .danger{border-left-color:var(--bad);background:var(--badsoft);color:#7a271a}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:#0e172a;color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.94rem}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#9db7f6;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.ghost{background:#eef2ff;color:#1e40af;border:1px solid #cfd8ff}.btn:hover{filter:brightness(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .perspectives{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}.perspective{border:1px solid var(--line);border-radius:17px;padding:20px;background:linear-gradient(180deg,#fff,#f9fbff)}.perspective .icon{font-size:1.45rem}.perspective h3{margin:8px 0}.perspective ul{padding-left:20px}
+    .tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.tab{border:1px solid var(--line);background:#fff;padding:8px 11px;border-radius:999px;cursor:pointer;font-weight:780}.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}.tab-panel{border:1px solid var(--line);border-radius:15px;padding:20px;background:#fbfcff;min-height:170px}
+    .stepper{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.step-indicator{display:flex;gap:8px;align-items:center;margin-bottom:18px}.step-dot{height:8px;flex:1;border-radius:999px;background:#d9e2ef}.step-dot.done{background:linear-gradient(90deg,var(--accent),var(--accent2))}.step-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:260px}.step-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:.8rem;font-weight:850}.pill.actor{background:#e8f7f4;color:#115e59}.pill.risk{background:#fff7e8;color:#8a4b08}.step-card h3{margin:8px 0}.step-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .lab{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}.field.checkbox{display:flex;align-items:end}.field.checkbox label{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#fff;padding:11px;border-radius:10px;width:100%}.field.checkbox input{width:auto}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:9px}.result-card strong{color:#fff}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px}.result-line:last-child{border-bottom:0;padding-bottom:0}.result-text{color:#dbeafe}.ok{color:#86efac}.warntext{color:#fde68a}.badtext{color:#fca5a5}
+    .timeline{position:relative;margin:24px 0 8px;padding-left:34px}.timeline:before{content:"";position:absolute;left:10px;top:8px;bottom:8px;width:3px;background:linear-gradient(var(--accent),var(--accent2));border-radius:999px}.time-item{position:relative;margin:0 0 20px;padding:17px 18px;border:1px solid var(--line);border-radius:15px;background:#fff}.time-item:before{content:"";position:absolute;left:-31px;top:21px;width:13px;height:13px;border-radius:50%;background:var(--accent);border:4px solid var(--bg)}.time-item h3{margin:0 0 5px;font-size:1.05rem}.time-item p{margin:0}
+    .state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.state{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fbfcfe}.state h3{margin:0 0 12px}.state-flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center}.state-node{padding:7px 9px;border-radius:9px;background:#eef2ff;color:#3730a3;font-size:.83rem;font-weight:800}.arrow{color:var(--muted);font-weight:900}
+    .event-stream{display:grid;gap:10px;margin-top:18px}.event{display:grid;grid-template-columns:175px 1fr;gap:14px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fff}.event code{font-weight:850;color:#1e40af}.event small{color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc}
+    .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .progress{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:14px 0}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.3s}.score{font-size:1.14rem;font-weight:850}
+    .source-list a{color:#1d4ed8;word-break:break-word}.source-note{color:var(--muted);font-size:.92rem}.footer{color:var(--muted);font-size:.9rem}.checklist li{margin-bottom:8px}
+    @media(max-width:800px){.perspectives,.state-grid{grid-template-columns:1fr}.event{grid-template-columns:1fr}.hero{padding-top:52px}.result-line{display:block}.result-line span{display:block;margin-top:2px}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 5</span>
+    <h1>Der erste Marktprozess: Lieferbeginn beim Einzug</h1>
+    <p class="subtitle">Wie aus einem Kundenvertrag eine bestätigte Lieferantenzuordnung wird – und warum Vertrag, physische Versorgung, Marktkommunikation und Abrechnungsbereitschaft vier verschiedene Dinge sind.</p>
+    <div class="hero-note">◉ Interaktiv · ca. 50–70 Minuten · Prozess-Simulator, Zustandsmodelle und Abschlusstest</div>
+  </div>
+</header>
+<nav>
+  <div class="wrap nav-inner">
+    <a href="#ziele">Lernziele</a><a href="#fall">Fallstudie</a><a href="#welten">Vier Welten</a><a href="#prozess">Prozess</a><a href="#labor">Simulator</a><a href="#fehler">Fehlerfälle</a><a href="#architektur">Architektur</a><a href="#test">Abschlusstest</a>
+  </div>
+</nav>
+<main class="wrap">
+
+<section id="ziele">
+  <h2>Lernziele</h2>
+  <p class="lead">Bislang kanntest du Rollen, Lokationen und Messkonzepte. Jetzt setzen wir sie erstmals zu einem vollständigen Geschäftsprozess zusammen: Ein Kunde zieht in eine bestehende Wohnung und möchte von seinem Wunschlieferanten versorgt werden.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Unterscheiden</span><strong>Vertrag und Zuordnung</strong><p>Ein angenommener Vertrag ist noch keine bestätigte Marktzuordnung.</p></div>
+    <div class="mini"><span class="badge">Ablaufen</span><strong>Lieferbeginn verstehen</strong><p>Vom Kundenauftrag über Identifikation und Prüfung bis zur Aktivierung.</p></div>
+    <div class="mini"><span class="badge">Absichern</span><strong>Lücken und Fehlerfälle</strong><p>Grundversorgung, Ablehnung, falsche MaLo und gesperrter Anschluss.</p></div>
+    <div class="mini"><span class="badge">Modellieren</span><strong>Getrennte Zustandsautomaten</strong><p>Vertrag, Marktzuordnung und Billing Readiness sauber entkoppeln.</p></div>
+  </div>
+  <div class="insight">Der wichtigste Satz der Lektion: <strong>„Der Kunde hat einen Vertrag“ und „der Lieferant ist der MaLo zugeordnet“ sind zwei unterschiedliche fachliche Tatsachen.</strong></div>
+</section>
+
+<section id="fall">
+  <h2>1. Ausgangsfall: Herr Müller zieht ein</h2>
+  <p>Herr Müller zieht am <strong>15. September</strong> in eine bereits bewohnte Wohnung. Die Wohnung besitzt eine bestehende Marktlokation, einen Zähler und eine bekannte MaLo-ID. Am 1. September schließt er einen Stromvertrag mit Nordstrom Energie zum Einzugstermin ab.</p>
+  <div class="diagram">01.09.                         15.09.
+Vertragsabschluss              Einzug / gewünschter Lieferbeginn
+Herr Müller ──► Nordstrom      Strom wird physisch entnommen
+                    │
+                    └── Marktprozess muss die MaLo Nordstrom zuordnen</div>
+  <p>Die Wohnung ist <strong>keine Neuanlage</strong>. Die MaLo existiert bereits. Es ändert sich lediglich, welcher Lieferant ihr ab einem Zeitpunkt zugeordnet ist und welcher Letztverbraucher sie nutzt.</p>
+  <div class="warning insight">„Neuer Kunde“ bedeutet nicht „neue Marktlokation“. Der GPKE-Prozess <em>Neuanlage</em> ist für die erstmalige Inbetriebnahme einer MaLo gedacht – nicht für jeden Einzug in eine bestehende Wohnung.</div>
+  <div class="quiz" data-key="q1" data-answer="b">
+    <h3>Welcher Sachverhalt liegt im Beispiel am ehesten vor?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Eine neue Marktlokation muss erzeugt werden, weil Herr Müller dort erstmals wohnt.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Lieferbeginn mit gleichzeitigem Einzug an einer bereits bestehenden MaLo.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Ein reiner Gerätewechsel ohne Lieferantenbezug.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="welten">
+  <h2>2. Vier parallele Wahrheiten</h2>
+  <p>Ein Lieferbeginn wirkt einfach, weil am Ende „Strom da“ ist. Fachlich laufen aber vier unterschiedliche Ebenen nebeneinander. Sie können unterschiedliche Zustände haben.</p>
+  <div class="perspectives">
+    <div class="perspective"><div class="icon">📄</div><h3>1. Vertrag</h3><ul><li>Kunde und Lieferant</li><li>Tarif, Preis, Laufzeit</li><li>gewünschter Lieferbeginn</li></ul></div>
+    <div class="perspective"><div class="icon">🔁</div><h3>2. Marktzuordnung</h3><ul><li>Lieferant und Netzbetreiber</li><li>MaLo, Bilanzkreis, Gültigkeit</li><li>Bestätigung oder Ablehnung</li></ul></div>
+    <div class="perspective"><div class="icon">⚡</div><h3>3. Physische Versorgung</h3><ul><li>Netzanschluss und Messung</li><li>Strom fließt unabhängig vom Markenlogo</li><li>bei Sperrung eigener Wiederherstellungsprozess</li></ul></div>
+  </div>
+  <div class="perspectives" style="grid-template-columns:1fr">
+    <div class="perspective"><div class="icon">🧾</div><h3>4. Abrechnungsbereitschaft</h3><p>Selbst nach bestätigter Zuordnung benötigt dein System korrekte Stammdaten, Preiszeiträume, Netznutzungsdaten, Messwerte und einen nachvollziehbaren Startwert. Erst dann ist eine belastbare Rechnung möglich.</p></div>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-world="contract">Vertrag angenommen</button>
+    <button class="tab" data-world="market">Zuordnung bestätigt</button>
+    <button class="tab" data-world="physical">Anschluss gesperrt</button>
+    <button class="tab" data-world="billing">Messwerte fehlen</button>
+  </div>
+  <div class="tab-panel" id="worldPanel"></div>
+
+  <div class="quiz" data-key="q2" data-answer="c">
+    <h3>Nordstrom hat Herrn Müllers Vertrag angenommen. Was folgt daraus sicher?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Nordstrom ist bereits technisch und marktlich der MaLo zugeordnet.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Der Netzbetreiber hat sämtliche Stammdaten bestätigt.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Es besteht eine vertragliche Grundlage; der Marktprozess muss trotzdem erfolgreich durchgeführt werden.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="prozess">
+  <h2>3. Lieferbeginn Schritt für Schritt</h2>
+  <p>Die folgenden Schritte sind bewusst fachlich formuliert. Konkrete EDIFACT-Nachrichten und Prüfidentifikatoren kommen später. Zuerst muss der Prozess als Zustandsänderung verstanden werden.</p>
+  <div class="stepper">
+    <div class="step-indicator" id="stepIndicator"></div>
+    <div class="step-card" id="stepCard"></div>
+    <div class="step-actions"><button class="btn secondary" id="prevStep">Zurück</button><button class="btn" id="nextStep">Nächster Schritt</button></div>
+  </div>
+
+  <h3>Gesamtbild</h3>
+  <div class="diagram">Kunde              Neuer Lieferant (LFN)          Netzbetreiber (NB)
+  │                         │                           │
+  │ Vertrag + Auftrag       │                           │
+  ├────────────────────────►│                           │
+  │                         │ MaLo identifizieren       │
+  │                         │ Lieferbeginn anmelden     │
+  │                         ├──────────────────────────►│
+  │                         │                           │ prüft Zuordnung,
+  │                         │                           │ Bilanzkreis, Termin,
+  │                         │                           │ bestehende Belegung
+  │                         │ Bestätigung / Ablehnung   │
+  │                         ◄───────────────────────────┤
+  │                         │                           │
+  │ Vertrags-/Startinfo     │                           │
+  ◄─────────────────────────┤                           │
+                            │                           │
+                            └── bei Erfolg: Marktzuordnung ab Startzeitpunkt</div>
+
+  <div class="success insight">Seit dem 6. Juni 2025 muss der technische Strom-Lieferantenwechsel werktäglich binnen 24 Stunden möglich sein. Das beschleunigt den Marktprozess, verkürzt aber keine vertraglichen Kündigungsfristen.</div>
+
+  <div class="quiz" data-key="q3" data-answer="a">
+    <h3>Welche Information identifiziert die zu beliefernde Stelle am zuverlässigsten?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Die MaLo-ID.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Nur die Postleitzahl.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Der monatliche Abschlag.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="labor">
+  <h2>4. Interaktiver Einzugs-Simulator</h2>
+  <p>Verändere die Ausgangslage. Der Simulator unterscheidet zwischen bestehender MaLo, Neuanlage, rechtzeitigem Vertrag und einer Versorgungslücke.</p>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="moveDate">Einzug / erste Entnahme</label><input id="moveDate" type="date" value="2026-09-15" /></div>
+      <div class="field"><label for="contractDate">Vertragsabschluss</label><input id="contractDate" type="date" value="2026-09-01" /></div>
+      <div class="field"><label for="locationType">Status der MaLo</label><select id="locationType"><option value="existing">MaLo besteht bereits</option><option value="new">Erstmalige Inbetriebnahme / Neuanlage</option></select></div>
+      <div class="field"><label for="identifier">Identifikation</label><select id="identifier"><option value="malo">MaLo-ID bekannt</option><option value="alternative">Nur Name, Adresse und Zählernummer</option><option value="weak">Nur Adresse bekannt</option></select></div>
+      <div class="field checkbox"><label><input id="blocked" type="checkbox" /> Anschluss ist derzeit gesperrt</label></div>
+    </div>
+    <button class="btn" id="simulate">Fall bewerten</button>
+    <div class="result-card" id="simulationResult" aria-live="polite"></div>
+  </div>
+  <div class="warning insight">Der Simulator ist ein didaktisches Modell, kein vollständiger Fristenrechner. Produktive Entscheidungen müssen anhand der gültigen GPKE, AHB, Entscheidungsbäume und Vertragslage erfolgen.</div>
+</section>
+
+<section id="fehler">
+  <h2>5. Vier typische Fehlerfälle</h2>
+  <div class="timeline">
+    <div class="time-item"><h3>Fall A: Vertrag erst nach dem Einzug</h3><p>Herr Müller verbraucht bereits Strom, bevor ein Vertrag mit dem Wunschlieferanten besteht. Für Strom kann der Wunschlieferant nicht rückwirkend zugeordnet werden. Für den Zwischenzeitraum entsteht in der Regel Grundversorgung; der Wunschlieferant kann für die Zukunft starten.</p></div>
+    <div class="time-item"><h3>Fall B: MaLo nicht eindeutig identifiziert</h3><p>Adresse und Zählernummer passen nicht eindeutig zusammen. Der Netzbetreiber kann den Vorgang ablehnen, wenn trotz gebotener Sorgfalt keine eindeutige Zuordnung möglich ist. Der Lieferant muss Daten korrigieren oder mit Kunde und Netzbetreiber klären.</p></div>
+    <div class="time-item"><h3>Fall C: Falsche MaLo oder Zählernummer</h3><p>Der Auftrag betrifft versehentlich die Nachbarwohnung. Das ist kein harmloser Stammdatenfehler, sondern eine falsche Lieferantenzuordnung. Die Korrektur muss für die Zukunft prozessual erfolgen; eine rückwirkende Marktzuordnung ist im Strombereich nicht vorgesehen.</p></div>
+    <div class="time-item"><h3>Fall D: Anschluss gesperrt</h3><p>Eine erfolgreiche Lieferantenzuordnung schaltet den Strom nicht automatisch physisch frei. Der Netzbetreiber führt gegebenenfalls einen eigenen Prozess zur Wiederherstellung der Anschlussnutzung aus.</p></div>
+  </div>
+
+  <h3>Zuordnungslücke und Auffangversorgung</h3>
+  <p>Eine verbrauchende MaLo soll nicht einfach „ohne Lieferant“ bleiben, während Strom entnommen wird. Entstehende Zuordnungslücken werden prozessual durch Ersatz- oder Grundversorgung geschlossen. Das verhindert eine physische Versorgungslücke, erzeugt aber einen eigenen Vertrag und eine eigene Abrechnungssituation.</p>
+  <div class="diagram">gewünschter Lieferbeginn
+          │
+          ├── bestätigt ──► Wunschlieferant zugeordnet
+          │
+          └── nicht rechtzeitig / abgelehnt
+                         └──► Grund- oder Ersatzversorgung schließt die Lücke</div>
+
+  <div class="danger insight"><strong>Strom und Gas nicht gleich behandeln:</strong> Für Strom ist eine rückwirkende Zuordnung zum Wunschlieferanten beim verspäteten Einzug nicht möglich. Im Gasbereich besteht beim Ein- und Auszug eine begrenzte Ausnahme, wenn der Vertrag schon vor der ersten Belieferung geschlossen war; die BNetzA nennt maximal sechs Wochen.</div>
+
+  <div class="quiz" data-key="q4" data-answer="b">
+    <h3>Herr Müller schließt seinen Wunschvertrag drei Tage nach dem Strom-Einzug ab. Was ist das richtige mentale Modell?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Der Wunschlieferant wird rückwirkend ab Einzug zugeordnet.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Für den bereits vergangenen Zeitraum besteht typischerweise Grundversorgung; der Wunschlieferant startet nur zukünftig.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Der Verbrauch bleibt unbilanziert und wird niemandem zugerechnet.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>6. Architektur: Drei Zustandsautomaten statt eines Statusfelds</h2>
+  <p>Ein häufiger Fehler wäre ein einziges Feld <span class="code">contract_status = ACTIVE</span>. Es verdeckt, dass Vertrag, Marktzuordnung und Abrechnungsbereitschaft unabhängig voneinander fortschreiten.</p>
+  <div class="state-grid">
+    <div class="state"><span class="badge">Commercial</span><h3>Vertrag</h3><div class="state-flow"><span class="state-node">DRAFT</span><span class="arrow">→</span><span class="state-node">ACCEPTED</span><span class="arrow">→</span><span class="state-node">ACTIVE</span><span class="arrow">→</span><span class="state-node">ENDED</span></div></div>
+    <div class="state"><span class="badge">Market</span><h3>Zuordnung</h3><div class="state-flow"><span class="state-node">IDENTIFYING</span><span class="arrow">→</span><span class="state-node">REQUESTED</span><span class="arrow">→</span><span class="state-node">CONFIRMED</span><span class="arrow">→</span><span class="state-node">EFFECTIVE</span></div><p><small>Alternativ: REJECTED / CLEARING</small></p></div>
+    <div class="state"><span class="badge">Billing</span><h3>Abrechnungsbereitschaft</h3><div class="state-flow"><span class="state-node">BLOCKED</span><span class="arrow">→</span><span class="state-node">DATA_PENDING</span><span class="arrow">→</span><span class="state-node">READY</span></div></div>
+  </div>
+  <div class="insight">Ein Vertrag kann <strong>ACCEPTED</strong> sein, während die Marktzuordnung <strong>REJECTED</strong> ist. Eine Marktzuordnung kann <strong>EFFECTIVE</strong> sein, während Billing wegen fehlender Messwerte noch <strong>DATA_PENDING</strong> bleibt.</div>
+
+  <h3>Mögliche interne Domänenereignisse</h3>
+  <div class="event-stream">
+    <div class="event"><code>ContractAccepted</code><div>Kommerzielle Vereinbarung ist geschlossen.<br><small>Noch keine Aussage über die Marktzuordnung.</small></div></div>
+    <div class="event"><code>SupplyStartRequested</code><div>Der Lieferbeginn wurde mit MaLo, Termin und Bilanzkreisbezug beim NB angestoßen.</div></div>
+    <div class="event"><code>MarketLocationIdentified</code><div>Die angefragte MaLo wurde eindeutig aufgelöst; Identifikationsprovenienz speichern.</div></div>
+    <div class="event"><code>SupplyStartConfirmed</code><div>Der NB hat die Zuordnung mit Wirksamkeitszeitpunkt bestätigt.</div></div>
+    <div class="event"><code>SupplyStartRejected</code><div>Geschäftsgrund und technische Details getrennt persistieren; Clearing-Workflow starten.</div></div>
+    <div class="event"><code>MarketAssignmentEffective</code><div>Der bestätigte Wirksamkeitszeitpunkt ist eingetreten.</div></div>
+    <div class="event"><code>BillingReadinessReached</code><div>Alle fachlich benötigten Daten für eine belastbare Abrechnung liegen vor.</div></div>
+  </div>
+
+  <h3>Welche Daten solltest du zeitabhängig speichern?</h3>
+  <table>
+    <thead><tr><th>Fachobjekt</th><th>Wesentliche Daten</th><th>Warum versionieren?</th></tr></thead>
+    <tbody>
+      <tr><td><strong>SupplyContract</strong></td><td>Kunde, Tarif, gewünschter Beginn, Vertragsbeginn</td><td>Vertragsbeginn und Marktstart können auseinanderfallen</td></tr>
+      <tr><td><strong>MarketAssignment</strong></td><td>MaLo, Lieferant, Bilanzkreis, gültig von/bis, Status</td><td>Historische Zuordnung muss reproduzierbar bleiben</td></tr>
+      <tr><td><strong>ProcessInstance</strong></td><td>Use Case, Geschäftsvorfall, Fristen, externe Referenzen</td><td>Erneute Anmeldungen dürfen die alte Historie nicht überschreiben</td></tr>
+      <tr><td><strong>IdentificationAttempt</strong></td><td>verwendete Merkmale, Ergebnis, Quelle</td><td>MaLo-Verwechslungen und Ablehnungen nachvollziehen</td></tr>
+      <tr><td><strong>BillingReadiness</strong></td><td>Stammdaten, Startwert, Messwerte, Preis- und Netzdaten</td><td>„Zuordnung aktiv“ ist keine ausreichende Billing-Freigabe</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quiz" data-key="q5" data-answer="c">
+    <h3>Welche Implementierung ist fachlich am robustesten?</h3>
+    <label class="option"><input type="radio" name="q5" value="a">A: Beim Vertragsabschluss sofort <span class="code">customer.supplied = true</span> setzen.</label>
+    <label class="option"><input type="radio" name="q5" value="b">B: Nur die letzte Antwort des Netzbetreibers speichern.</label>
+    <label class="option"><input type="radio" name="q5" value="c">C: Vertrag, Prozessinstanz, bestätigte Marktzuordnung und Billing Readiness getrennt und zeitabhängig modellieren.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="test">
+  <h2>7. Abschlusstest</h2>
+  <p>Beantworte alle zehn Fragen. Ziel ist nicht das Auswendiglernen eines Nachrichtentyps, sondern ein stabiles Prozessmodell.</p>
+  <div id="finalQuiz">
+    <div class="quiz final" data-answer="b"><h3>1. Ein Mieter zieht in eine bestehende Wohnung. Ist das automatisch eine Neuanlage?</h3><label class="option"><input type="radio" name="f1" value="a">Ja, weil ein neuer Kunde einzieht.</label><label class="option"><input type="radio" name="f1" value="b">Nein, wenn die MaLo bereits besteht und nur die Belieferungszuordnung wechselt.</label><label class="option"><input type="radio" name="f1" value="c">Nur wenn der Zählerstand unbekannt ist.</label></div>
+    <div class="quiz final" data-answer="c"><h3>2. Was beweist ein angenommener Liefervertrag?</h3><label class="option"><input type="radio" name="f2" value="a">Die MaLo-Zuordnung ist bestätigt.</label><label class="option"><input type="radio" name="f2" value="b">Der Anschluss ist entsperrt.</label><label class="option"><input type="radio" name="f2" value="c">Die kommerzielle Vereinbarung besteht; der Marktprozess kann dennoch offen sein.</label></div>
+    <div class="quiz final" data-answer="a"><h3>3. Welcher Schlüssel ist für die Identifikation der Verbrauchsstelle am zuverlässigsten?</h3><label class="option"><input type="radio" name="f3" value="a">MaLo-ID</label><label class="option"><input type="radio" name="f3" value="b">Tarifname</label><label class="option"><input type="radio" name="f3" value="c">IBAN</label></div>
+    <div class="quiz final" data-answer="b"><h3>4. Was prüft der Netzbetreiber im Lieferbeginn fachlich unter anderem?</h3><label class="option"><input type="radio" name="f4" value="a">Ob der Kunde sein Gehalt erhalten hat.</label><label class="option"><input type="radio" name="f4" value="b">Identifikation, Zuordnung, Wirksamkeitszeitpunkt und erforderlichen Bilanzkreisbezug.</label><label class="option"><input type="radio" name="f4" value="c">Die Marketingeinwilligung.</label></div>
+    <div class="quiz final" data-answer="c"><h3>5. Was bedeutet „24-Stunden-Lieferantenwechsel“?</h3><label class="option"><input type="radio" name="f5" value="a">Jeder Vertrag kann innerhalb von 24 Stunden gekündigt werden.</label><label class="option"><input type="radio" name="f5" value="b">Der Zähler wird innerhalb von 24 Stunden ausgetauscht.</label><label class="option"><input type="radio" name="f5" value="c">Der technische Strom-Wechselprozess muss werktäglich binnen 24 Stunden möglich sein; Vertragsfristen bleiben bestehen.</label></div>
+    <div class="quiz final" data-answer="a"><h3>6. Der Kunde verbraucht Strom vor Abschluss des Wunschvertrags. Was passiert typischerweise?</h3><label class="option"><input type="radio" name="f6" value="a">Für die Zwischenzeit entsteht Grundversorgung; der Wunschvertrag kann nur zukünftig wirken.</label><label class="option"><input type="radio" name="f6" value="b">Der Verbrauch wird rückwirkend immer dem Wunschlieferanten zugeordnet.</label><label class="option"><input type="radio" name="f6" value="c">Es gibt keinerlei Vertrag.</label></div>
+    <div class="quiz final" data-answer="b"><h3>7. Eine Lieferantenzuordnung ist bestätigt, der Anschluss aber gesperrt. Was folgt?</h3><label class="option"><input type="radio" name="f7" value="a">Die Bestätigung entsperrt automatisch den Anschluss.</label><label class="option"><input type="radio" name="f7" value="b">Es kann ein separater Prozess zur Wiederherstellung der Anschlussnutzung nötig sein.</label><label class="option"><input type="radio" name="f7" value="c">Der Liefervertrag ist unwirksam.</label></div>
+    <div class="quiz final" data-answer="c"><h3>8. Warum ist ein einziges Feld <span class="code">ACTIVE</span> problematisch?</h3><label class="option"><input type="radio" name="f8" value="a">Weil Datenbanken keine Statusfelder speichern können.</label><label class="option"><input type="radio" name="f8" value="b">Weil jede Rechnung mehrere Farben braucht.</label><label class="option"><input type="radio" name="f8" value="c">Weil Vertrag, Marktzuordnung, physische Versorgung und Billing Readiness unterschiedliche Zustände haben können.</label></div>
+    <div class="quiz final" data-answer="a"><h3>9. Welches Ereignis sollte nicht automatisch dasselbe bedeuten wie <span class="code">MarketAssignmentEffective</span>?</h3><label class="option"><input type="radio" name="f9" value="a"><span class="code">ContractAccepted</span></label><label class="option"><input type="radio" name="f9" value="b">Ein bestätigter Zuordnungsbeginn ist eingetreten.</label><label class="option"><input type="radio" name="f9" value="c">Der NB hat die Zuordnung bestätigt und der Startzeitpunkt ist erreicht.</label></div>
+    <div class="quiz final" data-answer="b"><h3>10. Welche Aussage zum Gasbereich ist richtig?</h3><label class="option"><input type="radio" name="f10" value="a">Strom und Gas haben immer identische Rückwirkungsregeln.</label><label class="option"><input type="radio" name="f10" value="b">Beim Gas-Ein-/Auszug gibt es unter Voraussetzungen eine begrenzte rückwirkende Ausnahme; diese gilt nicht für Strom.</label><label class="option"><input type="radio" name="f10" value="c">Gas benötigt keine Marktkommunikation.</label></div>
+    <button class="btn" id="evaluate">Test auswerten</button><button class="btn secondary" id="reset">Zurücksetzen</button>
+    <div class="progress"><span id="bar"></span></div><div class="score" id="score"></div><div class="feedback" id="result"></div>
+  </div>
+</section>
+
+<section>
+  <h2>8. Merksätze</h2>
+  <div class="grid">
+    <div class="mini"><strong>Einzug ≠ Neuanlage</strong><p>Ein neuer Nutzer kann eine schon lange bestehende MaLo übernehmen.</p></div>
+    <div class="mini"><strong>Vertrag ≠ Zuordnung</strong><p>Der Vertrag ist kommerziell, die MaLo-Zuordnung ist ein Marktstatus.</p></div>
+    <div class="mini"><strong>Bestätigung ≠ Billing Ready</strong><p>Für die Rechnung fehlen möglicherweise noch Stammdaten und Messwerte.</p></div>
+    <div class="mini"><strong>MaLo-ID zuerst</strong><p>Alternative Identifikationsmerkmale erhöhen das Clearing-Risiko.</p></div>
+    <div class="mini"><strong>Keine Rückwirkung bei Strom</strong><p>Der Wunschlieferant kann nach verspätetem Vertragsabschluss nur zukünftig starten.</p></div>
+    <div class="mini"><strong>Lücken werden aufgefangen</strong><p>Grund- oder Ersatzversorgung verhindert eine unzugeordnete Entnahme.</p></div>
+  </div>
+</section>
+
+<section class="source-list">
+  <h2>Fachliche Quellen und Einordnung</h2>
+  <p>Die Lektion bildet den Strom-Lieferbeginn didaktisch ab. Für eine produktive Implementierung sind die jeweils gültigen GPKE-Teile, Anwendungshandbücher, Entscheidungsbäume, Codelisten und Formatbeschreibungen maßgeblich.</p>
+  <ul>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2024/BK6-24-174/Beschluss/BK6-24-174_GPKE_Teil2_Lesefassung.pdf?__blob=publicationFile&v=1">Bundesnetzagentur: GPKE Teil 2 – Zuordnungsprozesse, Use Case Lieferbeginn</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/8353_Lieferantenwechsel/BK6_Lieferantenwechsel24h_node.html">Bundesnetzagentur: Lieferantenwechsel in 24 Stunden</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/KuendigungLieferantenwechsel/Lieferantenwechsel/start.html">Bundesnetzagentur: Verbraucherinformationen zu Lieferantenwechsel, Einzug und MaLo-Identifikation</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/Vertragsarten/start.html">Bundesnetzagentur: Grund- und Ersatzversorgung</a></li>
+  </ul>
+  <p class="source-note">Architekturbegriffe wie <span class="code">BillingReadinessReached</span> sind didaktische interne Domänenereignisse und keine offiziellen Marktkommunikations-Nachrichten. Die konkrete technische Nachrichtenabbildung folgt in einer späteren Lektion.</p>
+  <p class="footer">Lektion 5 · Marktkommunikation für Softwareentwickler · Stand: Juli 2026</p>
+</section>
+
+</main>
+<script>
+  const explanations={
+    q1:{good:'Richtig. Der Einzug ist ein Anlass für Lieferbeginn an einer bestehenden MaLo, nicht automatisch eine erstmalige Inbetriebnahme.',bad:'Nicht ganz. Entscheidend ist, ob die Marktlokation erstmals in Betrieb genommen wird – nicht, ob der Letztverbraucher neu ist.'},
+    q2:{good:'Richtig. Vertrag und Marktzuordnung sind getrennte Tatsachen und können unterschiedliche Zustände haben.',bad:'Nicht ganz. Die Vertragsannahme ersetzt weder Identifikation noch Bestätigung durch den Netzbetreiber.'},
+    q3:{good:'Richtig. Die MaLo-ID identifiziert die Marktlokation am zuverlässigsten; alternative Merkmale dienen der Identifikation, wenn sie fehlt.',bad:'Nicht ganz. Tarif- und Zahlungsdaten identifizieren die Marktlokation nicht.'},
+    q4:{good:'Richtig. Für den vergangenen Stromzeitraum erfolgt keine rückwirkende Zuordnung zum später gewählten Wunschlieferanten.',bad:'Nicht ganz. Beim Strom ist die rückwirkende Zuordnung zum Wunschlieferanten nicht möglich.'},
+    q5:{good:'Richtig. Die getrennten Zustände verhindern, dass ein kommerzieller Status fälschlich als Markt- oder Billingstatus interpretiert wird.',bad:'Nicht ganz. Ein einziger Status verliert wichtige Unterschiede und macht Fehlerfälle kaum beherrschbar.'}
+  };
+
+  document.querySelectorAll('.quiz:not(.final) .check').forEach(btn=>btn.addEventListener('click',()=>{
+    const quiz=btn.closest('.quiz');
+    const selected=quiz.querySelector('input:checked');
+    const fb=quiz.querySelector('.feedback');
+    const key=quiz.dataset.key;
+    if(!selected){fb.className='feedback bad';fb.textContent='Bitte wähle zuerst eine Antwort.';return;}
+    const ok=selected.value===quiz.dataset.answer;
+    fb.className='feedback '+(ok?'good':'bad');
+    fb.textContent=ok?explanations[key].good:explanations[key].bad;
+  }));
+
+  const worlds={
+    contract:`<h3>Vertrag angenommen – Marktzuordnung noch offen</h3><p>Nordstrom hat Tarif, Kunde und gewünschten Beginn akzeptiert. Daraus folgt ein Auftrag, den Lieferbeginn anzustoßen. Dein System darf jedoch noch nicht behaupten, dass Nordstrom ab dem Termin tatsächlich der MaLo zugeordnet ist.</p><div class="insight">Kommerzieller Status: <strong>ACCEPTED</strong> · Marktstatus: <strong>NOT_REQUESTED</strong> oder <strong>REQUESTED</strong></div>`,
+    market:`<h3>Zuordnung bestätigt – Startzeitpunkt noch in der Zukunft</h3><p>Der Netzbetreiber hat bestätigt, dass Nordstrom der MaLo ab dem 15. September zugeordnet wird. Am 10. September ist diese Zuordnung fachlich bestätigt, aber noch nicht wirksam.</p><div class="insight">Marktstatus: <strong>CONFIRMED</strong> · Wirksamkeit: <strong>ab 15.09.</strong></div>`,
+    physical:`<h3>Marktlich korrekt, physisch noch gesperrt</h3><p>Die Zuordnung kann erfolgreich sein, während am Anschluss kein Strom fließt. Die Wiederherstellung der Anschlussnutzung ist ein eigener Prozess mit eigener Ausführung und möglichen Kosten oder Voraussetzungen.</p>`,
+    billing:`<h3>Belieferung aktiv – Rechnung noch nicht belastbar</h3><p>Der Lieferbeginn ist wirksam. Es fehlen aber beispielsweise Startzählerstand, Messwertstatus oder abrechnungsrelevante Stammdaten. Das Billing sollte deshalb nicht blind eine Rechnung erzeugen.</p><div class="warning insight">Marktstatus: <strong>EFFECTIVE</strong> · Billing: <strong>DATA_PENDING</strong></div>`
+  };
+  const worldPanel=document.getElementById('worldPanel');
+  function setWorld(key){worldPanel.innerHTML=worlds[key];document.querySelectorAll('.tab[data-world]').forEach(t=>t.classList.toggle('active',t.dataset.world===key));}
+  document.querySelectorAll('.tab[data-world]').forEach(t=>t.addEventListener('click',()=>setWorld(t.dataset.world)));
+  setWorld('contract');
+
+  const steps=[
+    {actor:'Kunde → LFN',phase:'Kommerziell',risk:'Vertragsprüfung',title:'1. Vertrag und Auftrag',text:'Herr Müller schließt vor dem Einzug einen Liefervertrag ab. Nordstrom kennt den gewünschten Lieferbeginn und erhält den Auftrag, die Belieferung zu organisieren.',system:'Dein System erzeugt einen SupplyContract und einen noch nicht bestätigten SupplyStartIntent.'},
+    {actor:'LFN',phase:'Identifikation',risk:'Falsche MaLo',title:'2. Marktlokation identifizieren',text:'Am zuverlässigsten wird die Verbrauchsstelle über die MaLo-ID identifiziert. Fehlt sie, werden Kombinationen aus Name, Adresse, Zählernummer, bisherigem Lieferanten oder Kundennummer verwendet.',system:'Speichere nicht nur das Ergebnis, sondern auch die verwendeten Identifikationsmerkmale und ihre Quelle.'},
+    {actor:'LFN → NB',phase:'Marktprozess',risk:'Frist / Datenqualität',title:'3. Lieferbeginn anmelden',text:'Nordstrom meldet dem Netzbetreiber die gewünschte Zuordnung zur bestehenden MaLo mit Wirksamkeitszeitpunkt und erforderlichem Bilanzkreisbezug.',system:'Eine ProcessInstance hält externe Referenzen, Geschäftsvorfall, Fristen und Nachrichtenstatus.'},
+    {actor:'NB',phase:'Validierung',risk:'Ablehnung',title:'4. Netzbetreiber prüft',text:'Der NB prüft insbesondere, ob die MaLo eindeutig ist, ob es sich wirklich um Lieferbeginn statt Neuanlage handelt, ob der Termin und die bestehende Zuordnung bearbeitbar sind und ob die erforderliche Bilanzkreisermächtigung vorliegt.',system:'Fachliche Ablehnungsgründe nicht als bloßen technischen Fehlerstring behandeln.'},
+    {actor:'NB → LFN',phase:'Entscheidung',risk:'Clearing',title:'5. Bestätigung oder Ablehnung',text:'Bei Bestätigung steht die zukünftige Marktzuordnung fest. Bei Ablehnung bleibt die Zuordnung aus; der LFN kann Daten klären und erneut anmelden.',system:'CONFIRMED und REJECTED sind Ergebnisse einer konkreten Prozessversion – nicht Eigenschaften, die alte Vorgänge überschreiben.'},
+    {actor:'Alle Systeme',phase:'Wirksamkeit',risk:'Datenlücken',title:'6. Zuordnung wird wirksam',text:'Am bestätigten Startzeitpunkt wird Nordstrom Lieferant der MaLo. Nachgelagerte Stammdaten-, Konfigurations-, Bilanzierungs- und Netznutzungsprozesse liefern die Grundlage für Betrieb und Abrechnung.',system:'Erzeuge MarketAssignmentEffective erst beim Eintritt des Wirksamkeitszeitpunkts, nicht schon bei Empfang der Bestätigung.'},
+    {actor:'Billing',phase:'Abrechnung',risk:'Fehlende Messwerte',title:'7. Billing Readiness prüfen',text:'Vertrag und Zuordnung reichen nicht für jede Rechnung. Das System prüft Startwert, Messwerte, Zeiträume, Preise und netzbezogene Abrechnungsdaten.',system:'BillingReadiness ist ein eigener, erklärbarer Status mit fehlenden Voraussetzungen.'}
+  ];
+  let currentStep=0;
+  const stepCard=document.getElementById('stepCard');
+  const stepIndicator=document.getElementById('stepIndicator');
+  function renderStep(){
+    stepIndicator.innerHTML=steps.map((_,i)=>`<span class="step-dot ${i<=currentStep?'done':''}"></span>`).join('');
+    const s=steps[currentStep];
+    stepCard.innerHTML=`<div class="step-meta"><span class="pill actor">${s.actor}</span><span class="pill">${s.phase}</span><span class="pill risk">Risiko: ${s.risk}</span></div><h3>${s.title}</h3><p>${s.text}</p><div class="success insight"><strong>Architekturbrille:</strong> ${s.system}</div><p><small>Schritt ${currentStep+1} von ${steps.length}</small></p>`;
+    document.getElementById('prevStep').disabled=currentStep===0;
+    document.getElementById('nextStep').textContent=currentStep===steps.length-1?'Zum Anfang':'Nächster Schritt';
+  }
+  document.getElementById('prevStep').addEventListener('click',()=>{if(currentStep>0){currentStep--;renderStep();}});
+  document.getElementById('nextStep').addEventListener('click',()=>{currentStep=currentStep===steps.length-1?0:currentStep+1;renderStep();});
+  renderStep();
+
+  const dateLabel=(value)=>new Intl.DateTimeFormat('de-DE').format(new Date(value+'T12:00:00'));
+  function simulate(){
+    const move=document.getElementById('moveDate').value;
+    const contract=document.getElementById('contractDate').value;
+    const type=document.getElementById('locationType').value;
+    const identifier=document.getElementById('identifier').value;
+    const blocked=document.getElementById('blocked').checked;
+    const out=document.getElementById('simulationResult');
+    if(!move||!contract){out.innerHTML='<div class="badtext"><strong>Bitte beide Datumsfelder ausfüllen.</strong></div>';return;}
+    const moveTime=new Date(move+'T12:00:00').getTime();
+    const contractTime=new Date(contract+'T12:00:00').getTime();
+    let route='', timing='', ident='', physical='', summaryClass='ok';
+    if(type==='new'){
+      route='<span class="warntext">Prozessroute: Neuanlage / erstmalige Inbetriebnahme – nicht der normale Lieferbeginn an einer bestehenden MaLo.</span>';
+      summaryClass='warntext';
+    }else{
+      route='<span class="ok">Prozessroute: Lieferbeginn an einer bestehenden MaLo.</span>';
+    }
+    if(contractTime<moveTime){
+      timing=`<span class="ok">Vertrag am ${dateLabel(contract)} liegt vor dem Einzug am ${dateLabel(move)}. Eine vertragliche Grundlage besteht rechtzeitig.</span>`;
+    }else if(contractTime===moveTime){
+      timing='<span class="warntext">Vertrag und erste Entnahme liegen am selben Kalendertag. Entscheidend ist, ob der Vertrag tatsächlich vor der ersten Stromentnahme zustande kam; operativ sollte der Fall frühzeitig geklärt werden.</span>';
+      summaryClass='warntext';
+    }else{
+      timing=`<span class="badtext">Der Wunschvertrag wurde erst nach dem Einzug geschlossen. Für Strom ist keine rückwirkende Zuordnung möglich; für die Lücke entsteht typischerweise Grundversorgung.</span>`;
+      summaryClass='badtext';
+    }
+    if(identifier==='malo') ident='<span class="ok">Identifikation: sehr robust über MaLo-ID.</span>';
+    else if(identifier==='alternative') ident='<span class="warntext">Identifikation: grundsätzlich möglich, aber fehleranfälliger. Name, Adresse und Zählernummer müssen eindeutig zusammenpassen.</span>';
+    else {ident='<span class="badtext">Identifikation: nur Adresse ist häufig nicht eindeutig. Clearing oder Ablehnung ist wahrscheinlich.</span>';summaryClass='badtext';}
+    physical=blocked?'<span class="warntext">Physik: Nach erfolgreicher Zuordnung ist zusätzlich die Wiederherstellung der Anschlussnutzung nötig.</span>':'<span class="ok">Physik: kein zusätzlicher Entsperrprozess im Modell angenommen.</span>';
+    out.innerHTML=`<div class="result-line"><strong>Prozess</strong><span>${route}</span></div><div class="result-line"><strong>Zeitliche Einordnung</strong><span>${timing}</span></div><div class="result-line"><strong>Identifikation</strong><span>${ident}</span></div><div class="result-line"><strong>Anschluss</strong><span>${physical}</span></div><div class="result-text ${summaryClass}"><strong>Architekturfolge:</strong> Erzeuge getrennte Zustände für Vertragsannahme, Prozessroute, Identifikation, Marktbestätigung, physische Anschlussnutzung und Billing Readiness.</div>`;
+  }
+  document.getElementById('simulate').addEventListener('click',simulate);
+  simulate();
+
+  document.getElementById('evaluate').addEventListener('click',()=>{
+    const questions=[...document.querySelectorAll('.quiz.final')];let score=0,answered=0;
+    questions.forEach(q=>{const s=q.querySelector('input:checked');if(s){answered++;if(s.value===q.dataset.answer)score++;}});
+    const pct=Math.round(score/questions.length*100);
+    document.getElementById('bar').style.width=pct+'%';
+    document.getElementById('score').textContent=`${score} von ${questions.length} Punkten (${pct} %)`;
+    const result=document.getElementById('result');
+    if(answered<questions.length){result.className='feedback bad';result.textContent=`Du hast ${answered} von ${questions.length} Fragen beantwortet. Vervollständige den Test für eine belastbare Auswertung.`;return;}
+    if(score===questions.length){result.className='feedback good';result.textContent='Sehr stark. Du trennst Vertrag, Marktzuordnung, Physik und Billing sauber und kannst den Lieferbeginn als verteilten Prozess erklären.';}
+    else if(score>=8){result.className='feedback good';result.textContent='Gut verstanden. Wiederhole besonders die Abgrenzung Neuanlage/Lieferbeginn und die Folgen eines verspäteten Vertragsabschlusses.';}
+    else if(score>=6){result.className='feedback bad';result.textContent='Das Grundmodell ist erkennbar, aber noch nicht stabil. Gehe den Prozess-Stepper und die drei Zustandsautomaten erneut durch.';}
+    else{result.className='feedback bad';result.textContent='Wiederhole die vier parallelen Wahrheiten. Der wichtigste Unterschied ist Vertrag ≠ Marktzuordnung ≠ physische Versorgung ≠ Billing Readiness.';}
+  });
+  document.getElementById('reset').addEventListener('click',()=>{
+    document.querySelectorAll('#finalQuiz input').forEach(i=>i.checked=false);
+    document.getElementById('bar').style.width='0';document.getElementById('score').textContent='';
+    const r=document.getElementById('result');r.className='feedback';r.textContent='';
+  });
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>

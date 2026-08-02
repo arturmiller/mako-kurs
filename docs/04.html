@@ -1,1 +1,407 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'04',minutes:15,title:'Lokationsbündel und Messkonzepte',lede:'Komplexe Versorgung ist kein Sonderfall-Boolean, sondern ein zeitabhängiger Graph aus Markt- und Messobjekten.',objectives:['1:n- und n:m-Beziehungen zwischen Markt- und Messlokationen akzeptieren','Tranchen als Zuordnungen statt als Kopien modellieren','Berechnungslogik von physischer Topologie trennen'],chapters:[{title:'Der Graph statt der Tabelle',html:'<p>PV-Anlage, Wärmepumpe, Speicher und Haushalt können über mehrere Messungen rechnerisch zusammenhängen. Eine einzelne <code>meterId</code>-Spalte an der MaLo bricht bei solchen Konstellationen.</p><pre class="model">MeLo A ─┐\n        ├─ CalculationRule ─▶ MaLo Verbrauch\nMeLo B ─┘                 └▶ MaLo Erzeugung</pre>'},{title:'Zuordnung als eigenes Fachobjekt',html:'<p>Eine Tranche beschreibt einen Anteil bzw. eine Zuordnung mit Gültigkeit. Sie ist weder eine zweite MaLo noch bloß ein Prozentfeld am Vertrag.</p><p class="callout">Versioniere Knoten, Kanten und Berechnungsregeln. Sonst lässt sich eine historische Energiemenge später nicht reproduzieren.</p>'}],quiz:[{question:'Welche Struktur trägt komplexe Messkonzepte am besten?',options:['Eine MaLo mit genau einer meterId','Ein zeitabhängiger Zuordnungsgraph','Ein Freitextfeld'],answer:1},{question:'Was muss für eine historische Neuberechnung erhalten bleiben?',options:['Nur der aktuelle Zähler','Damals gültige Beziehungen und Berechnungsregeln','Nur die Kundenadresse'],answer:1}],task:{title:'Baue ein prüfbares Rechenmodell',prompt:'Welche drei Ebenen würdest du getrennt halten?',answer:'<ol><li>Topologie: MaLo, MeLo, Geräte und zeitliche Beziehungen</li><li>Rohdaten: Werte, Qualität, Quelle und Version</li><li>Ableitung: versionierte Berechnungsregel plus Ergebnis und Provenienz</li></ol>'},sources:[['Bundesnetzagentur: WiM','https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/833_wim/wim_basepage.html'],['Bundesnetzagentur: Datenformate','https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/835_mitteilungen_datenformate/Datenformate-node.html']],prev:'03',next:'05'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zu Messkonzepten, Marktlokationen, Messlokationen, Rechenregeln und Lokationsbündeln in der Marktkommunikation." />
+  <title>Lektion 4 – Vom Gebäude zum Messkonzept</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#2457d6;--accent2:#7a3ee6;--accent3:#0f766e;--soft:#eaf1ff;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 90% 10%,rgba(255,255,255,.18),transparent 28%),linear-gradient(135deg,#101b37 0%,#2353c7 52%,#7439d8 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1030px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.45rem);line-height:1.02;max-width:920px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:830px;color:rgba(255,255,255,.89);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(244,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,43px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#1d4ed8;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}
+    .success{border-left-color:var(--accent3);background:#e8f7f4;color:#115e59}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:#0e172a;color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.94rem}
+    .layers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:24px 0}.layer{border-radius:16px;padding:18px;border:1px solid var(--line);background:linear-gradient(180deg,#fff,#f8faff)}.layer h3{margin:0 0 8px}.layer .num{width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:#172554;color:white;font-weight:900;margin-bottom:12px}
+    .concept{border:1px solid var(--line);border-radius:17px;padding:20px;margin:18px 0;background:linear-gradient(180deg,#fff,#fbfdff)}
+    .concept-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.concept-head h3{margin:0}.formula{display:inline-flex;background:#eef2ff;border:1px solid #cfd8ff;padding:6px 10px;border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:800;white-space:nowrap}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#9db7f6;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.ghost{background:#eef2ff;color:#1e40af;border:1px solid #cfd8ff}.btn:hover{filter:brightness(.97)}
+    .lab{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}
+    .lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:8px}.result-card strong{color:#fff}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:7px}.result-line:last-child{border-bottom:0;padding-bottom:0}
+    .scenario-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:15px 0}.tab{border:1px solid var(--line);background:#fff;padding:8px 11px;border-radius:999px;cursor:pointer;font-weight:780}.tab.active{background:var(--accent);border-color:var(--accent);color:#fff}.scenario-panel{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcff}
+    table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc}
+    .code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .progress{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:14px 0}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.3s}.score{font-size:1.14rem;font-weight:850}
+    .source-list a{color:#1d4ed8;word-break:break-word}.source-note{color:var(--muted);font-size:.92rem}.footer{color:var(--muted);font-size:.9rem}
+    .checklist li{margin-bottom:8px}
+    @media(max-width:760px){.layers{grid-template-columns:1fr}.concept-head{display:block}.formula{margin-top:10px}.hero{padding-top:52px}.result-line{display:block}.result-line span{display:block;margin-top:2px}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 4</span>
+    <h1>Vom Gebäude zum Messkonzept</h1>
+    <p class="subtitle">Wie aus physischen Messwerten die Energiemengen von Marktlokationen entstehen – mit Rechenregeln, Lokationsbündeln und einem belastbaren Domänenmodell.</p>
+    <div class="hero-note">◉ Interaktiv · ca. 45–60 Minuten · mit Rechenlabor und Abschlusstest</div>
+  </div>
+</header>
+<nav>
+  <div class="wrap nav-inner">
+    <a href="#ziele">Lernziele</a><a href="#dreiebenen">Drei Ebenen</a><a href="#messgeraet">Gerät & Register</a><a href="#konzepte">Messkonzepte</a><a href="#labor">Rechenlabor</a><a href="#buendel">Lokationsbündel</a><a href="#architektur">Architektur</a><a href="#test">Abschlusstest</a>
+  </div>
+</nav>
+<main class="wrap">
+
+<section id="ziele">
+  <h2>Lernziele</h2>
+  <p class="lead">Lektion 3 hat die Marktobjekte eingeführt. Diese Lektion beantwortet die nächste, praktisch entscheidende Frage: <strong>Wie wird aus einem oder mehreren Messwerten die Energiemenge einer MaLo?</strong></p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Trennen</span><strong>Physik, Messung und Markt</strong><p>Gebäude, Messgerät und MaLo nicht miteinander verwechseln.</p></div>
+    <div class="mini"><span class="badge">Berechnen</span><strong>Rechenregeln</strong><p>Summen-, Differenz- und Richtungsfälle nachvollziehen.</p></div>
+    <div class="mini"><span class="badge">Verstehen</span><strong>Lokationsbündel</strong><p>Messtechnisch abhängige Lokationen als zusammenhängende Struktur lesen.</p></div>
+    <div class="mini"><span class="badge">Modellieren</span><strong>Zeitabhängige Konfiguration</strong><p>Messkonzepte versioniert und auditierbar in Software abbilden.</p></div>
+  </div>
+  <div class="insight">Der zentrale Perspektivwechsel: Eine MaLo-Energiemenge ist nicht zwingend ein direkt abgelesener Zählerwert. Sie kann das Ergebnis einer fachlich vereinbarten und zeitabhängigen Rechenregel sein.</div>
+</section>
+
+<section id="dreiebenen">
+  <h2>1. Ein Haus – drei Betrachtungsebenen</h2>
+  <p>Herr Müller hat ein Einfamilienhaus mit Haushaltsverbrauch, Wärmepumpe und Photovoltaikanlage. Umgangssprachlich ist das „ein Haus mit zwei Zählern“. Für Marktkommunikation ist diese Beschreibung nicht präzise genug.</p>
+  <div class="layers">
+    <div class="layer"><div class="num">1</div><h3>Physische Ebene</h3><p>Leitungen, Anschluss, Sicherungen, Wechselrichter, Geräte und reale Energieflüsse.</p></div>
+    <div class="layer"><div class="num">2</div><h3>Mess-Ebene</h3><p>Messlokationen, Messgeräte, Register, Zeitreihen und technische Messwerte.</p></div>
+    <div class="layer"><div class="num">3</div><h3>Markt-Ebene</h3><p>Marktlokationen, Verträge, Lieferantenzuordnungen, Bilanzkreise und abrechenbare Energiemengen.</p></div>
+  </div>
+  <div class="diagram">Adresse: Musterstraße 12
+│
+├── Physisch: Hausanschluss, PV, Wärmepumpe, Leitungen
+│
+├── Messung:  MeLo A, MeLo B, Messgeräte, Register, Messwerte
+│
+└── Markt:    MaLo Haushalt, MaLo Wärmepumpe, MaLo PV-Einspeisung</div>
+  <div class="warning insight"><strong>Korrektur eines häufigen Kurzschlusses:</strong> Eine Adresse ist nicht „bedeutungslos“ – sie hilft bei Suche, Identifikation und Kommunikation. Sie ist aber kein eindeutiger fachlicher Schlüssel, weil an einer Adresse mehrere MaLo existieren können und eine komplexe Anlage auch mehrere Anschlusspunkte haben kann.</div>
+  <div class="quiz" data-key="q1" data-answer="b">
+    <h3>Welche Aussage ist fachlich am belastbarsten?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Ein Gebäude entspricht immer genau einer MaLo.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Das Gebäude ist ein realer Standort; die Anzahl der MaLo hängt von den energiewirtschaftlichen Sachverhalten und dem Messkonzept ab.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Die Anzahl der MaLo entspricht immer der Anzahl der physischen Zähler.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="messgeraet">
+  <h2>2. Messlokation, Messgerät und Register sind nicht dasselbe</h2>
+  <p>Ein physisches Messgerät kann mehrere Register besitzen – etwa für Bezug und Einspeisung oder für unterschiedliche Tarifzeiten. Die Register liefern Messwerte. Die Messlokation ist dagegen das administrative Marktobjekt, in dessen Kontext relevante physikalische Größen ermittelt und gegebenenfalls übertragen werden.</p>
+  <div class="diagram">Messlokation (MeLo, identifiziert durch ZPB)
+│
+└── eingebautes Messgerät, gültig von … bis …
+    │
+    ├── Register 1.8.0  → Bezug
+    ├── Register 2.8.0  → Einspeisung
+    └── ggf. weitere Register / Messwerte</div>
+  <p>Ein Gerätewechsel verändert typischerweise die Gerätenummer und den Einbauzeitraum. Die MeLo und die zugehörigen MaLo müssen dadurch nicht neu entstehen.</p>
+  <div class="success insight">Für dein Datenmodell bedeutet das: <span class="code">MeteringLocation</span>, <span class="code">MeterInstallation</span>, <span class="code">Register</span> und <span class="code">Reading</span> sollten getrennte Lebenszyklen besitzen.</div>
+  <div class="quiz" data-key="q2" data-answer="c">
+    <h3>Ein Zweirichtungszähler wird gegen ein neues Gerät getauscht. Was ändert sich sicher?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Beide MaLo-IDs.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Die Adresse des Gebäudes.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Die Gerätezuordnung und die Zählernummer für den neuen Gültigkeitszeitraum.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="konzepte">
+  <h2>3. Vier grundlegende Mess- und Rechenkonzepte</h2>
+  <p>Die offizielle Prozesswelt erlaubt unterschiedliche Beziehungen zwischen MaLo und MeLo. Entscheidend ist nicht nur die Kardinalität, sondern auch die Rechenvorschrift, mit der die MaLo-Energie bestimmt wird.</p>
+
+  <div class="concept">
+    <div class="concept-head"><div><span class="badge">Fall A · 1:1</span><h3>Direkte Messung</h3></div><span class="formula">E(MaLo) = E(MeLo)</span></div>
+    <p>Eine MeLo liefert unmittelbar die Energiemenge einer MaLo. Das ist der intuitive Standardfall eines einfachen Haushaltsanschlusses.</p>
+    <div class="diagram">MaLo Haushalt  ◄────  MeLo Bezug
+   3.200 kWh          3.200 kWh</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-head"><div><span class="badge">Fall B · 1:n</span><h3>Summenbildung</h3></div><span class="formula">E(MaLo) = E(MeLo A) + E(MeLo B)</span></div>
+    <p>Eine fachliche Verbrauchseinheit wird über mehrere Messstellen erfasst, etwa an zwei Netzanschlusspunkten. Für Bilanzierung und Abrechnung werden die Messwerte zusammengeführt.</p>
+    <div class="diagram">MeLo A  4.100 kWh ─┐
+                     ├──► MaLo Industrie = 10.000 kWh
+MeLo B  5.900 kWh ─┘</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-head"><div><span class="badge">Fall C · 1:n</span><h3>Differenzbildung</h3></div><span class="formula">E(MaLo) = Hauptmessung − Untermessung</span></div>
+    <p>Eine Hauptmessung enthält den Verbrauch einer untergeordneten Einheit. Die Energiemenge der verbleibenden MaLo wird rechnerisch ermittelt.</p>
+    <div class="diagram">Hauptmessung Gebäude       8.000 kWh
+− Untermessung Hausmeister   1.200 kWh
+────────────────────────────────────
+= MaLo Schule               6.800 kWh</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-head"><div><span class="badge">Fall D · n:1</span><h3>Eine MeLo, mehrere MaLo</h3></div><span class="formula">Register/Richtung → getrennte MaLo</span></div>
+    <p>Ein Zweirichtungszähler kann Messwerte liefern, die zur Ermittlung einer verbrauchenden und einer erzeugenden MaLo benötigt werden.</p>
+    <div class="diagram">                       ┌──► MaLo Verbrauch  (Register Bezug)
+MeLo Zweirichtung ──────┤
+                       └──► MaLo Erzeugung  (Register Einspeisung)</div>
+  </div>
+
+  <div class="concept">
+    <div class="concept-head"><div><span class="badge">Sonderfall</span><h3>Pauschale Ermittlung</h3></div><span class="formula">E(MaLo) = vereinbarte/ermittelte Pauschale</span></div>
+    <p>Bei bestimmten kleinen oder pauschal bewerteten Verbrauchseinrichtungen kann die MaLo-Energie ohne reguläre physische Messung ermittelt werden. Das zeigt besonders deutlich: Die Marktmenge ist ein fachliches Ergebnis, nicht zwingend ein Gerätewert.</p>
+  </div>
+
+  <div class="quiz" data-key="q3" data-answer="a">
+    <h3>Welche Gleichung passt zum Beispiel „Schule mit Hausmeisterwohnung“?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Schule = Hauptmessung − Untermessung Hausmeister.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Schule = Hauptmessung × Anzahl der Lieferanten.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Schule = Zählernummer + MaLo-ID.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="labor">
+  <h2>4. Interaktives Rechenlabor</h2>
+  <p>Spiele eine Haupt- und Untermessung durch. Die Hauptmessung umfasst sowohl den Verbrauch der Schule als auch den Verbrauch der Hausmeisterwohnung.</p>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="mainValue">Hauptmessung</label><input id="mainValue" type="number" min="0" step="0.001" value="8000" /></div>
+      <div class="field"><label for="subValue">Untermessung Hausmeister</label><input id="subValue" type="number" min="0" step="0.001" value="1200" /></div>
+      <div class="field"><label for="unit">Einheit</label><select id="unit"><option value="kWh">kWh</option><option value="MWh">MWh</option></select></div>
+    </div>
+    <button class="btn" id="calculate">MaLo-Mengen berechnen</button>
+    <div class="result-card" id="labResult" aria-live="polite">
+      <div class="result-line"><strong>MaLo Hausmeister</strong><span>1.200 kWh</span></div>
+      <div class="result-line"><strong>MaLo Schule</strong><span>6.800 kWh</span></div>
+      <div class="result-line"><strong>Plausibilitätsprüfung</strong><span>6.800 + 1.200 = 8.000 kWh ✓</span></div>
+    </div>
+  </div>
+  <h3>Was die Rechnung noch nicht zeigt</h3>
+  <p>In einem Produktivsystem genügt die Formel allein nicht. Du brauchst mindestens:</p>
+  <ul class="checklist">
+    <li>die beteiligten MaLo und MeLo mit ihren IDs,</li>
+    <li>den Gültigkeitszeitraum der Rechenregel,</li>
+    <li>Richtung, Einheit, Zeitraster und Messwertstatus,</li>
+    <li>Version und Herkunft der Konfiguration,</li>
+    <li>Umgang mit fehlenden, ersetzten oder korrigierten Messwerten,</li>
+    <li>Nachvollziehbarkeit, welche Eingangswerte zu welchem Ergebnis führten.</li>
+  </ul>
+  <div class="warning insight">Eine Formel wie <span class="code">main - sub</span> als frei editierbarer String ist für ein revisionssicheres System meist zu schwach. Robuster ist eine typisierte, versionierte Rechenstruktur mit expliziten Operanden und Gültigkeitszeiträumen.</div>
+</section>
+
+<section id="buendel">
+  <h2>5. Lokationsbündel: Der fachliche Zusammenhang</h2>
+  <p>Ein Lokationsbündel fasst die messtechnisch voneinander abhängigen Lokationen und die Struktur zusammen, die zur Ermittlung der relevanten Werte benötigt wird. Es ist damit näher an einem <strong>Abhängigkeitsgraphen</strong> als an einer bloßen Liste.</p>
+  <div class="diagram">Lokationsbündel „Schule / Hausmeister“
+│
+├── MaLo Schule
+├── MaLo Hausmeister
+├── MeLo Hauptmessung
+├── MeLo Untermessung
+└── Rechenstruktur
+    ├── Hausmeister = Untermessung
+    └── Schule      = Hauptmessung − Untermessung</div>
+  <div class="insight">Warum muss der gesamte Zusammenhang bekannt sein? Weil eine Änderung an einer Messlokation mehrere ermittelte MaLo-Mengen beeinflussen kann. Der Austausch eines Unterzählers ist nicht nur ein lokales Geräteereignis – er kann die Berechnung einer übergeordneten MaLo berühren.</div>
+
+  <h3>Interaktive Szenarien</h3>
+  <div class="scenario-tabs" role="tablist">
+    <button class="tab active" data-scenario="meter">Zählerwechsel</button>
+    <button class="tab" data-scenario="split">Neue separate MaLo</button>
+    <button class="tab" data-scenario="missing">Fehlender Messwert</button>
+  </div>
+  <div class="scenario-panel" id="scenarioPanel"></div>
+
+  <div class="quiz" data-key="q4" data-answer="c">
+    <h3>Warum ist ein Lokationsbündel fachlich mehr als eine Gruppierungs-ID?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Weil es nur die Postadresse aller Beteiligten speichert.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Weil es ausschließlich Rechnungen zusammenfasst.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Weil es die Abhängigkeiten zwischen Lokationen und der Ermittlung ihrer Werte beschreibt.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>6. Übertragung in dein Domänenmodell</h2>
+  <p>Die fachliche Trennung lässt sich in ein Modell mit vier Ebenen übersetzen:</p>
+  <div class="diagram">PhysicalTopology
+  connectionPoint, technicalResource, direction
+
+MeteringConfiguration
+  meteringLocation, meterInstallation, register, channel
+
+CalculationConfiguration
+  formulaGraph, operands, validity, version, responsibleParty
+
+MarketAssignment
+  marketLocation, supplier, balancingGroup, contract, validity</div>
+  <table>
+    <thead><tr><th>Objekt</th><th>Wofür zuständig?</th><th>Typischer Lebenszyklus</th></tr></thead>
+    <tbody>
+      <tr><td><strong>MeteringLocation</strong></td><td>Administrativer Messkontext, Identifikation über ZPB</td><td>Langlebig; nicht an ein einzelnes Gerät binden</td></tr>
+      <tr><td><strong>MeterInstallation</strong></td><td>Konkretes eingebautes Gerät</td><td>Von/bis; endet bei Ausbau oder Wechsel</td></tr>
+      <tr><td><strong>Register / Channel</strong></td><td>Welche physikalische Größe bzw. Richtung gemessen wird</td><td>Geräte- und konfigurationsabhängig</td></tr>
+      <tr><td><strong>CalculationRule</strong></td><td>Wie MaLo-Werte aus Eingangsgrößen entstehen</td><td>Versioniert, mit Gültigkeitszeitraum</td></tr>
+      <tr><td><strong>DerivedEnergyQuantity</strong></td><td>Ermitteltes Ergebnis mit Provenienz</td><td>Je Zeitraum/Intervall; korrigierbar durch neue Version</td></tr>
+      <tr><td><strong>MarketAssignment</strong></td><td>Lieferant, Bilanzkreis, Vertrag und Rolle</td><td>Zeitabhängige Zuordnung</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Ein mögliches typisiertes Rechenmodell</h3>
+  <div class="diagram">CalculationRule {
+  id: UUID
+  target: MarketLocationId
+  valid_from: Instant
+  valid_until: Instant?
+  expression: Subtract(
+      MeasurementSeries(main_metering_location, direction=IMPORT),
+      MeasurementSeries(sub_metering_location, direction=IMPORT)
+  )
+  resolution: PT15M
+  version: 3
+}</div>
+  <p>So ist explizit, welche Zeitreihe mit welcher Richtung und Auflösung in die Berechnung eingeht. Eine Korrektur überschreibt nicht stillschweigend die alte Konfiguration, sondern erzeugt eine neue Version.</p>
+  <div class="quiz" data-key="q5" data-answer="b">
+    <h3>Welche Modellierung ist für Audit und Korrekturen am robustesten?</h3>
+    <label class="option"><input type="radio" name="q5" value="a">A: Nur den aktuell berechneten Jahresverbrauch in der Kundentabelle speichern.</label>
+    <label class="option"><input type="radio" name="q5" value="b">B: Eingangswerte, Regelversion, Gültigkeit und abgeleitetes Ergebnis nachvollziehbar speichern.</label>
+    <label class="option"><input type="radio" name="q5" value="c">C: Die Formel in einem Kommentar im Quellcode dokumentieren.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="test">
+  <h2>7. Abschlusstest</h2>
+  <p>Beantworte alle acht Fragen. Die Auswertung zeigt, ob das Messkonzept als mentales Modell sitzt.</p>
+  <div id="finalQuiz">
+    <div class="quiz final" data-answer="b"><h3>1. Eine Adresse …</h3><label class="option"><input type="radio" name="f1" value="a">… ist immer die eindeutige ID einer MaLo.</label><label class="option"><input type="radio" name="f1" value="b">… beschreibt den Standort, bestimmt aber nicht automatisch die Anzahl der MaLo.</label><label class="option"><input type="radio" name="f1" value="c">… entspricht immer einer MeLo.</label></div>
+    <div class="quiz final" data-answer="c"><h3>2. Was kann ein physisches Messgerät besitzen?</h3><label class="option"><input type="radio" name="f2" value="a">Nur genau einen Messwert für seine gesamte Lebensdauer.</label><label class="option"><input type="radio" name="f2" value="b">Automatisch eine MaLo-ID.</label><label class="option"><input type="radio" name="f2" value="c">Mehrere Register, beispielsweise für Bezug und Einspeisung.</label></div>
+    <div class="quiz final" data-answer="a"><h3>3. Welche Beziehung beschreibt die direkte Messung?</h3><label class="option"><input type="radio" name="f3" value="a">E(MaLo) = E(MeLo)</label><label class="option"><input type="radio" name="f3" value="b">E(MaLo) = Zählernummer</label><label class="option"><input type="radio" name="f3" value="c">E(MaLo) = Kundenanzahl</label></div>
+    <div class="quiz final" data-answer="b"><h3>4. Hauptmessung 9.500 kWh, Untermessung 1.700 kWh. Wie groß ist die verbleibende MaLo?</h3><label class="option"><input type="radio" name="f4" value="a">11.200 kWh</label><label class="option"><input type="radio" name="f4" value="b">7.800 kWh</label><label class="option"><input type="radio" name="f4" value="c">5,59 kWh</label></div>
+    <div class="quiz final" data-answer="c"><h3>5. Was zeigt der Zweirichtungsfall?</h3><label class="option"><input type="radio" name="f5" value="a">Ein Gebäude darf nur eine Marktlokation haben.</label><label class="option"><input type="radio" name="f5" value="b">Jedes Register ist automatisch eine eigene MeLo.</label><label class="option"><input type="radio" name="f5" value="c">Eine MeLo kann Messwerte für mehrere MaLo liefern.</label></div>
+    <div class="quiz final" data-answer="a"><h3>6. Was beschreibt ein Lokationsbündel am besten?</h3><label class="option"><input type="radio" name="f6" value="a">Den Zusammenhang messtechnisch abhängiger Lokationen und ihrer Struktur.</label><label class="option"><input type="radio" name="f6" value="b">Eine Liste aller Kunden eines Lieferanten.</label><label class="option"><input type="radio" name="f6" value="c">Nur einen gemeinsamen Rechnungsversand.</label></div>
+    <div class="quiz final" data-answer="b"><h3>7. Warum braucht eine Rechenregel einen Gültigkeitszeitraum?</h3><label class="option"><input type="radio" name="f7" value="a">Weil Messwerte nur nachts gültig sind.</label><label class="option"><input type="radio" name="f7" value="b">Weil sich Messkonzept und Zuordnungen ändern können und historische Berechnungen reproduzierbar bleiben müssen.</label><label class="option"><input type="radio" name="f7" value="c">Nur um Speicherplatz zu sparen.</label></div>
+    <div class="quiz final" data-answer="c"><h3>8. Was sollte ein abgeleiteter MaLo-Wert zusätzlich zur Zahl enthalten?</h3><label class="option"><input type="radio" name="f8" value="a">Nur den Kundennamen.</label><label class="option"><input type="radio" name="f8" value="b">Nur die aktuelle Zählernummer.</label><label class="option"><input type="radio" name="f8" value="c">Provenienz: Eingangswerte, Regelversion, Zeitraum und Status.</label></div>
+    <button class="btn" id="evaluate">Test auswerten</button><button class="btn secondary" id="reset">Zurücksetzen</button>
+    <div class="progress"><span id="bar"></span></div><div class="score" id="score"></div><div class="feedback" id="result"></div>
+  </div>
+</section>
+
+<section>
+  <h2>8. Merksätze</h2>
+  <div class="grid">
+    <div class="mini"><strong>Adresse ≠ MaLo</strong><p>Der Standort hilft beim Finden, ist aber nicht der energiewirtschaftliche Schlüssel.</p></div>
+    <div class="mini"><strong>Gerät ≠ MeLo</strong><p>Das Gerät kann wechseln; die administrative Messlokation bleibt häufig bestehen.</p></div>
+    <div class="mini"><strong>Messwert ≠ Marktmenge</strong><p>Eine MaLo-Menge kann gemessen, addiert, subtrahiert oder pauschal ermittelt werden.</p></div>
+    <div class="mini"><strong>Lokationsbündel = Graph</strong><p>Änderungen können mehrere abhängige Lokationen und Ergebnisse betreffen.</p></div>
+    <div class="mini"><strong>Konfiguration ist zeitabhängig</strong><p>Rechenregeln und Zuordnungen brauchen Gültigkeit und Version.</p></div>
+    <div class="mini"><strong>Provenienz ist Pflicht</strong><p>Ein Ergebnis muss aus seinen Eingängen reproduzierbar sein.</p></div>
+  </div>
+</section>
+
+<section class="source-list">
+  <h2>Fachliche Quellen und Einordnung</h2>
+  <p>Die Beispiele orientieren sich an den offiziellen Definitionen und BDEW-Anwendungshilfen zu MaLo, MeLo, Zählpunkt und den möglichen Beziehungen. Für eine produktive Implementierung sind immer die zum jeweiligen Stichtag gültigen Festlegungen, AHB und Codelisten maßgeblich.</p>
+  <ul>
+    <li><a href="https://www.bdew.de/media/documents/2023-03-06-Foliensatz-Objekte-MaKo_V1.5_eTVLAZ0.pdf">BDEW: Objekte in der Marktkommunikation, Version 1.5</a></li>
+    <li><a href="https://www.bdew.de/media/documents/BDEW-FNN_Anwendungshilfe-Messtechnik-MaKo_2024-01-09.pdf">BDEW/FNN: Anwendungshilfe Messtechnik Marktkommunikation, Version 1.1</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2024/BK6-24-210/BK6-24-210-1/Anlagen/BK6-24-210-1_GPKE_1_Vergleichsversion.pdf?__blob=publicationFile&v=1">Bundesnetzagentur: GPKE Teil 1, Vergleichsversion im Verfahren BK6-24-210-1</a></li>
+  </ul>
+  <p class="source-note">Didaktische Vereinfachung: Die Lektion konzentriert sich auf die Logik der Messwertermittlung. Rollen- und prozessspezifische Detailvorgaben, Zeitreihentypen, Ersatzwertbildung und konkrete Nachrichtenformate folgen in späteren Lektionen.</p>
+  <p class="footer">Lektion 4 · Marktkommunikation für Softwareentwickler · Stand: Juli 2026</p>
+</section>
+
+</main>
+<script>
+  const explanations={
+    q1:{good:'Richtig. Standort und energiewirtschaftliche Objekte sind unterschiedliche Ebenen. Das Mess- und Vertragsmodell entscheidet über die konkrete Lokationsstruktur.',bad:'Nicht ganz. Weder Gebäude noch Zählerzahl legen die MaLo-Struktur automatisch fest.'},
+    q2:{good:'Richtig. Das neue Gerät erhält eine neue Geräteidentität und einen neuen Installationszeitraum; die Lokationen können fortbestehen.',bad:'Nicht ganz. Ein Gerätewechsel verändert nicht automatisch MaLo, MeLo oder Gebäudeadresse.'},
+    q3:{good:'Richtig. Der Verbrauch der Untereinheit wird aus der umfassenden Hauptmessung herausgerechnet.',bad:'Nicht ganz. Die Marktmenge entsteht hier durch eine Differenzbildung aus zwei Messwerten.'},
+    q4:{good:'Richtig. Das Bündel beschreibt den fachlichen Abhängigkeitszusammenhang, nicht nur eine gemeinsame Kennung.',bad:'Nicht ganz. Entscheidend sind die messtechnischen Abhängigkeiten und die Struktur der Wertermittlung.'},
+    q5:{good:'Richtig. Erst die Kombination aus Eingängen, Regelversion, Gültigkeit und Ergebnis ermöglicht Reproduktion und Audit.',bad:'Nicht ganz. Ein einzelner aktueller Wert oder ein Kommentar reicht für Historie und Korrekturen nicht aus.'}
+  };
+
+  document.querySelectorAll('.quiz:not(.final) .check').forEach(btn=>btn.addEventListener('click',()=>{
+    const quiz=btn.closest('.quiz');
+    const selected=quiz.querySelector('input:checked');
+    const fb=quiz.querySelector('.feedback');
+    const key=quiz.dataset.key;
+    if(!selected){fb.className='feedback bad';fb.textContent='Bitte wähle zuerst eine Antwort.';return;}
+    const ok=selected.value===quiz.dataset.answer;
+    fb.className='feedback '+(ok?'good':'bad');
+    fb.textContent=ok?explanations[key].good:explanations[key].bad;
+  }));
+
+  const formatNumber=(value,unit)=>new Intl.NumberFormat('de-DE',{maximumFractionDigits:3}).format(value)+' '+unit;
+  function calculateLab(){
+    const main=Number(document.getElementById('mainValue').value);
+    const sub=Number(document.getElementById('subValue').value);
+    const unit=document.getElementById('unit').value;
+    const result=document.getElementById('labResult');
+    if(!Number.isFinite(main)||!Number.isFinite(sub)||main<0||sub<0){
+      result.innerHTML='<div><strong>Bitte gib zwei nichtnegative Zahlen ein.</strong></div>';return;
+    }
+    if(sub>main){
+      result.innerHTML='<div><strong>Plausibilitätsfehler:</strong> Die Untermessung ist größer als die Hauptmessung. Das kann auf falsche Zeiträume, Einheiten, Richtungen oder fehlerhafte Werte hindeuten.</div>';return;
+    }
+    const school=main-sub;
+    result.innerHTML=`<div class="result-line"><strong>MaLo Hausmeister</strong><span>${formatNumber(sub,unit)}</span></div>
+      <div class="result-line"><strong>MaLo Schule</strong><span>${formatNumber(school,unit)}</span></div>
+      <div class="result-line"><strong>Plausibilitätsprüfung</strong><span>${formatNumber(school,unit)} + ${formatNumber(sub,unit)} = ${formatNumber(main,unit)} ✓</span></div>`;
+  }
+  document.getElementById('calculate').addEventListener('click',calculateLab);
+
+  const scenarios={
+    meter:`<h3>Zählerwechsel in der Hauptmessung</h3><p><strong>Unverändert:</strong> MaLo Schule, MaLo Hausmeister, MeLo und die fachliche Differenzregel können bestehen bleiben.</p><p><strong>Geändert:</strong> Geräteinstallation und Zählernummer ab dem Wechselzeitpunkt. Die Messwertzeitreihe muss über den Gerätewechsel hinweg fachlich konsistent fortgeführt werden.</p>`,
+    split:`<h3>Ein Verbrauch wird als eigene MaLo herausgelöst</h3><p>Die Lokations- und Rechenstruktur ändert sich. Eine neue MaLo und gegebenenfalls eine neue MeLo werden benötigt. Ab dem Wirksamkeitszeitpunkt muss die alte Rechenregel beendet und eine neue Version aktiviert werden.</p>`,
+    missing:`<h3>Messwert der Untermessung fehlt</h3><p>Die MaLo Schule kann für diesen Zeitraum nicht einfach mit <em>Hauptmessung − 0</em> berechnet werden. Das System benötigt einen fachlich zulässigen Status- und Ersatzwertprozess. Das Ergebnis muss erkennen lassen, ob es gemessen, ersetzt, geschätzt oder später korrigiert wurde.</p>`
+  };
+  const panel=document.getElementById('scenarioPanel');
+  function setScenario(key){panel.innerHTML=scenarios[key];document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.scenario===key));}
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>setScenario(t.dataset.scenario)));
+  setScenario('meter');
+
+  document.getElementById('evaluate').addEventListener('click',()=>{
+    const questions=[...document.querySelectorAll('.quiz.final')];let score=0,answered=0;
+    questions.forEach(q=>{const s=q.querySelector('input:checked');if(s){answered++;if(s.value===q.dataset.answer)score++;}});
+    const pct=Math.round(score/questions.length*100);
+    document.getElementById('bar').style.width=pct+'%';
+    document.getElementById('score').textContent=`${score} von ${questions.length} Punkten (${pct} %)`;
+    const result=document.getElementById('result');
+    if(answered<questions.length){result.className='feedback bad';result.textContent=`Du hast ${answered} von ${questions.length} Fragen beantwortet. Vervollständige den Test für eine belastbare Auswertung.`;return;}
+    if(score===questions.length){result.className='feedback good';result.textContent='Sehr stark. Du kannst physische Messung, administrative Lokation und abgeleitete Marktmenge sicher trennen.';}
+    else if(score>=6){result.className='feedback good';result.textContent='Gut verstanden. Wiederhole noch einmal die Fälle n:1 sowie die Anforderungen an versionierte Rechenregeln.';}
+    else{result.className='feedback bad';result.textContent='Das Grundmodell ist noch nicht stabil. Gehe die vier Messkonzepte und das Rechenlabor erneut durch.';}
+  });
+  document.getElementById('reset').addEventListener('click',()=>{
+    document.querySelectorAll('#finalQuiz input').forEach(i=>i.checked=false);
+    document.getElementById('bar').style.width='0';document.getElementById('score').textContent='';
+    const r=document.getElementById('result');r.className='feedback';r.textContent='';
+  });
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>

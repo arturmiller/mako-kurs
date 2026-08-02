@@ -1,1 +1,533 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'07',minutes:13,title:'Lieferende und Auszug',lede:'Kundenauszug, Vertragsende, Zuordnungsende und Abrechnungsreife sind vier verschiedene Ereignisse.',objectives:['Auszug und Stilllegung unterscheiden','Zuordnungsende unabhängig vom Billing-Status modellieren','Korrekturen ohne Überschreiben verarbeiten'],chapters:[{title:'Ein Ende ist nicht genug',html:'<pre class="model">Customer move-out ─┐\nContract end       ├─ unterschiedliche Ursachen und Zeiten\nAssignment end     ┤\nBilling ready      ┘</pre><p>Eine MaLo wird durch Auszug nicht gelöscht. Ein Nachfolger, Grund-/Ersatzversorgung oder eine Klärung kann anschließen.</p>'},{title:'Rechnung folgt Datenreife',html:'<p>Auch nach bestätigtem Zuordnungsende können Messwert, Preis oder Netzdaten fehlen. Der Billing-Kontext wartet auf vollständige, gültige Eingaben.</p><p class="callout">Korrekturen als neue Version mit Quelle und Zeitbezug speichern – niemals die Vergangenheit unsichtbar überschreiben.</p>'}],quiz:[{question:'Bedeutet Kundenauszug automatisch Stilllegung der MaLo?',options:['Ja','Nein','Nur bei intelligentem Messsystem'],answer:1},{question:'Ist bestätigtes Zuordnungsende gleich „billing ready“?',options:['Ja','Nein, abrechnungsrelevante Daten können fehlen','Nur im Gasmarkt'],answer:1}],task:{title:'Trenne vier Aggregate',prompt:'Welche Kontexte reagieren auf einen Auszug?',answer:'<p><strong>Customer/Contract</strong> beendet das Vertragsverhältnis, <strong>Market Process</strong> koordiniert das Zuordnungsende, <strong>Metering</strong> liefert bzw. korrigiert Werte, <strong>Billing</strong> erstellt erst bei Datenreife die Schlussrechnung.</p>'},sources:[['Bundesnetzagentur: GPKE','https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/831_gpke/gpke_basepage.html'],['Bundesnetzagentur: Grundversorgung','https://www.bundesnetzagentur.de/DE/Vportal/Energie/Vertragsarten/Grundversorgung/start.html']],prev:'06',next:'08'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zu Auszug und Lieferende im Strommarkt: Vertragsende, Lieferantenzuordnung, Stilllegung, Ersatz- und Grundversorgung, Endwerte, Schlussabrechnung und Softwarearchitektur." />
+  <title>Lektion 7 – Lieferende und Auszug</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#2457d6;--accent2:#7a3ee6;--accent3:#0f766e;--soft:#eaf1ff;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 87% 12%,rgba(255,255,255,.18),transparent 29%),linear-gradient(135deg,#101b37 0%,#2353c7 52%,#7439d8 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1040px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.45rem);line-height:1.02;max-width:930px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:880px;color:rgba(255,255,255,.89);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(244,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,43px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#1d4ed8;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}.success{border-left-color:var(--accent3);background:#e8f7f4;color:#115e59}.danger{border-left-color:var(--bad);background:var(--badsoft);color:#7a271a}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:#0e172a;color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.92rem}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#9db7f6;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.ghost{background:#eef2ff;color:#1e40af;border:1px solid #cfd8ff}.btn:hover{filter:brightness(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .layer-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:24px 0}.layer{border:1px solid var(--line);border-radius:16px;padding:17px;background:linear-gradient(180deg,#fff,#f8faff)}.layer .n{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900}.layer h3{font-size:1rem;margin:10px 0 6px}.layer p{font-size:.91rem;margin:0;color:#475467}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}.lane{border:1px solid var(--line);border-radius:18px;padding:20px;background:#fbfcff}.lane h3{margin:0 0 10px}.lane .number{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900;margin-right:8px}
+    .stepper{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.step-indicator{display:flex;gap:8px;align-items:center;margin-bottom:18px}.step-dot{height:8px;flex:1;border-radius:999px;background:#d9e2ef}.step-dot.done{background:linear-gradient(90deg,var(--accent),var(--accent2))}.step-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:275px}.step-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:.8rem;font-weight:850}.pill.actor{background:#e8f7f4;color:#115e59}.pill.risk{background:#fff7e8;color:#8a4b08}.step-card h3{margin:8px 0}.step-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .order-box{border:1px solid #cfd8ff;border-radius:18px;padding:20px;background:#f8faff;margin-top:22px}.order-options{display:grid;gap:10px;margin-top:14px}.order-option{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;font-weight:700}.order-option:hover{border-color:#9db7f6}.order-selected{margin-top:16px;padding:14px;border-radius:12px;background:#0f172a;color:#e5edff;min-height:55px}.order-token{display:inline-block;margin:3px;padding:5px 8px;border-radius:8px;background:#334155;font-size:.84rem}
+    .timeline{position:relative;margin:24px 0 8px;padding-left:34px}.timeline:before{content:"";position:absolute;left:10px;top:8px;bottom:8px;width:3px;background:linear-gradient(var(--accent),var(--accent2));border-radius:999px}.time-item{position:relative;margin:0 0 20px;padding:17px 18px;border:1px solid var(--line);border-radius:15px;background:#fff}.time-item:before{content:"";position:absolute;left:-31px;top:21px;width:13px;height:13px;border-radius:50%;background:var(--accent);border:4px solid var(--bg)}.time-item h3{margin:0 0 5px;font-size:1.05rem}.time-item p{margin:0}
+    .lab{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:9px}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px}.result-line:last-child{border-bottom:0;padding-bottom:0}.result-text{color:#dbeafe}.ok{color:#86efac}.warntext{color:#fde68a}.badtext{color:#fca5a5}
+    .state-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}.state{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fbfcfe}.state h3{margin:0 0 12px}.state-flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center}.state-node{padding:7px 9px;border-radius:9px;background:#eef2ff;color:#3730a3;font-size:.83rem;font-weight:800}.arrow{color:var(--muted);font-weight:900}
+    .event-stream{display:grid;gap:10px;margin-top:18px}.event{display:grid;grid-template-columns:210px 1fr;gap:14px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fff}.event code{font-weight:850;color:#1e40af}.event small{color:var(--muted)}
+    .scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:15px;margin-top:20px}.scenario{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}.scenario button{width:100%;text-align:left;border:0;background:#f8faff;padding:17px;font-weight:850;cursor:pointer;color:var(--text)}.scenario .answer{display:none;padding:17px;border-top:1px solid var(--line)}.scenario.open .answer{display:block}
+    table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc}.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .progress{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:14px 0}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.3s}.score{font-size:1.14rem;font-weight:850}
+    .source-list a{color:#1d4ed8;word-break:break-word}.source-note{color:var(--muted);font-size:.92rem}.footer{color:var(--muted);font-size:.9rem}.checklist li{margin-bottom:8px}
+    @media(max-width:900px){.layer-grid{grid-template-columns:repeat(2,1fr)}.state-grid{grid-template-columns:1fr 1fr}}
+    @media(max-width:700px){.layer-grid,.split,.state-grid{grid-template-columns:1fr}.event{grid-template-columns:1fr}.hero{padding-top:52px}.result-line{display:block}.result-line span{display:block;margin-top:2px}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 7</span>
+    <h1>Lieferende und Auszug</h1>
+    <p class="subtitle">Warum ein Auszug nicht einfach „Vertrag auf beendet setzen“ bedeutet – und weshalb Marktzuordnung, Messwert, Bilanzierung und Schlussrechnung getrennte Lebenszyklen besitzen.</p>
+    <div class="hero-note">⚡ Fokus: verbrauchende Marktlokationen im Strommarkt · mit kurzem Gas-Vergleich</div>
+  </div>
+</header>
+
+<nav>
+  <div class="wrap nav-inner">
+    <a href="#ziele">Lernziele</a><a href="#fall">Ausgangsfall</a><a href="#fuenf-enden">Fünf Enden</a><a href="#prozesse">Prozesse</a><a href="#ablauf">Ablauf</a><a href="#fristen">Fristen</a><a href="#labor">Simulator</a><a href="#messwerte">Endwerte</a><a href="#architektur">Architektur</a><a href="#test">Abschlusstest</a>
+  </div>
+</nav>
+
+<main class="wrap">
+<section id="ziele">
+  <h2>1. Lernziele</h2>
+  <p class="lead">Nach dieser Lektion kannst du einen Auszug in fachlich getrennte Vorgänge zerlegen und daraus ein robustes Prozess- und Datenmodell für dein EVU-System ableiten.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Begriffe</span><strong>Auszug ≠ Lieferende ≠ Stilllegung</strong><p>Du kannst die drei Ereignisse sauber voneinander abgrenzen.</p></div>
+    <div class="mini"><span class="badge">Prozess</span><strong>LF → NB und NB → LF</strong><p>Du verstehst die zwei Richtungen des GPKE-Lieferendes.</p></div>
+    <div class="mini"><span class="badge">Zeit</span><strong>Gültigkeitsintervalle</strong><p>Du modellierst Vertrags-, Zuordnungs-, Mess- und Abrechnungszeiträume getrennt.</p></div>
+    <div class="mini"><span class="badge">Abrechnung</span><strong>Schlussrechnung</strong><p>Du erkennst, weshalb ein bestätigtes Lieferende noch keine abrechenbare Schlussrechnung garantiert.</p></div>
+  </div>
+</section>
+
+<section id="fall">
+  <h2>2. Ausgangsfall: Herr Müller zieht aus</h2>
+  <p>Herr Müller übergibt seine Wohnung am <strong>30. September</strong>. Er meldet den Auszug seinem Lieferanten Nordstrom Energie. Am selben Tag fotografiert er den Zählerstand.</p>
+  <p>Eine naive Implementierung könnte Folgendes tun:</p>
+  <div class="diagram">contract.status = "TERMINATED"
+customer.moved_out = true
+create_final_invoice()</div>
+  <p>Das ist fachlich zu kurz gedacht. Mindestens diese Fragen sind noch offen:</p>
+  <ul class="checklist">
+    <li>Zu welchem Zeitpunkt endet der Liefervertrag rechtlich?</li>
+    <li>Zu welchem Zeitpunkt endet die Marktzuordnung des Lieferanten zur MaLo?</li>
+    <li>Bleibt die MaLo aktiv oder wird sie tatsächlich stillgelegt?</li>
+    <li>Wer ist anschließend zugeordnet: Nachfolgelieferant, Grund-/Ersatzversorger oder niemand?</li>
+    <li>Ist der gemeldete Endzählerstand plausibel und für die Abrechnung verwendbar?</li>
+    <li>Liegen bereits alle Preis-, Mess- und Netznutzungsdaten für die Schlussrechnung vor?</li>
+  </ul>
+  <div class="insight">Der Auszug ist ein Ereignis aus der Kunden- und Nutzungswelt. Das <em>Lieferende</em> ist ein Zuordnungsprozess im Energiemarkt. Beides hängt zusammen, ist aber nicht identisch.</div>
+
+  <div class="quiz" data-key="q1" data-answer="b" data-explain="Der Auszug beendet nicht automatisch die technische Existenz der MaLo. Häufig zieht nur der Nutzer aus, während Wohnung, Netzanschluss, Messung und MaLo für den Nachfolger bestehen bleiben.">
+    <h3>Herr Müller zieht aus. Was folgt daraus automatisch?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Die Marktlokation wird stillgelegt und gelöscht.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Zunächst nur: Die bisherige Nutzung und das Vertragsverhältnis müssen fachlich geklärt und beendet werden.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Der Stromzähler wird sofort ausgebaut.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="fuenf-enden">
+  <h2>3. Ein Auszug erzeugt mindestens fünf verschiedene „Enden“</h2>
+  <p>Für Menschen ist „Ich bin ab dem 1. Oktober raus“ ein einziger Sachverhalt. In einem verteilten EVU-System zerfällt er in mehrere fachliche Zeitachsen.</p>
+  <div class="layer-grid">
+    <div class="layer"><span class="n">1</span><h3>Nutzungsende</h3><p>Der Kunde nutzt die Wohnung oder Anlage nicht mehr. Quelle ist typischerweise der Kunde beziehungsweise die Übergabe.</p></div>
+    <div class="layer"><span class="n">2</span><h3>Vertragsende</h3><p>Der Energieliefervertrag endet entsprechend Vertrag, Kündigung und gegebenenfalls Sonderkündigungsrecht.</p></div>
+    <div class="layer"><span class="n">3</span><h3>Zuordnungsende</h3><p>Der Netzbetreiber beendet die marktliche Zuordnung des bisherigen Lieferanten zur MaLo.</p></div>
+    <div class="layer"><span class="n">4</span><h3>Messintervallende</h3><p>Eine Energiemenge oder ein Zählerstand wird dem Endzeitpunkt zugeordnet und fachlich bewertet.</p></div>
+    <div class="layer"><span class="n">5</span><h3>Abrechnungsende</h3><p>Die letzte abrechenbare Periode ist vollständig; die Schlussrechnung kann erzeugt werden.</p></div>
+  </div>
+  <div class="warning insight">Diese Zeitpunkte können gleich sein – dein Datenmodell darf aber nicht voraussetzen, dass sie immer gleich sind oder gleichzeitig bekannt werden.</div>
+
+  <table>
+    <thead><tr><th>Datum</th><th>Fachliche Aussage</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>30.09., 23:59</td><td>Vertrags- und gewünschtes Zuordnungsende</td><td>bestätigt</td></tr>
+      <tr><td>30.09., 18:10</td><td>Kunde liest Zählerstand 18.442 kWh ab</td><td>selbst abgelesen, noch ungeprüft</td></tr>
+      <tr><td>02.10.</td><td>MSB/NB liefert abrechnungsfähigen Endwert</td><td>validiert</td></tr>
+      <tr><td>08.10.</td><td>Netznutzungs- und Preisdaten vollständig</td><td>billing ready</td></tr>
+      <tr><td>09.10.</td><td>Schlussrechnung erstellt</td><td>issued</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quiz" data-key="q2" data-answer="c" data-explain="Die Marktzuordnung kann beendet sein, obwohl der Endwert oder weitere Abrechnungsdaten noch fehlen. Die Schlussrechnung benötigt eine eigene Vollständigkeitsprüfung.">
+    <h3>Der NB hat das Lieferende bestätigt. Darf das System sofort eine endgültige Schlussrechnung erzeugen?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Ja, die Bestätigung enthält automatisch alle Messwerte und Preise.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Ja, aber nur bei Haushaltskunden.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Nur wenn zusätzlich alle abrechnungsrelevanten Daten vollständig und belastbar sind.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="prozesse">
+  <h2>4. Zwei Richtungen des Lieferendes</h2>
+  <p>Die GPKE unterscheidet fachlich, wer das Ende der Zuordnung auslöst.</p>
+  <div class="split">
+    <div class="lane">
+      <h3><span class="number">A</span>LF meldet an NB ab</h3>
+      <p><strong>Normaler Fall für deinen Lieferanten:</strong> Das Vertragsverhältnis endet, beispielsweise durch Auszug, Lieferantenwechsel oder Kündigung.</p>
+      <ul><li>LF nennt MaLo-ID und Zuordnungsende</li><li>LF nennt einen Abmeldegrund</li><li>NB bestätigt oder lehnt ab</li><li>bei Erfolg endet Zuordnung, Netznutzung und Bilanzierung zum Termin</li></ul>
+    </div>
+    <div class="lane">
+      <h3><span class="number">B</span>NB kündigt LF-Zuordnung</h3>
+      <p><strong>Netzseitig ausgelöster Fall:</strong> Der NB kündigt dem LF das Ende der Zuordnung an, etwa bei einer echten Stilllegung oder wenn notwendige Zuordnungsvoraussetzungen entfallen.</p>
+      <ul><li>NB kündigt Ende an</li><li>LF kann antworten</li><li>bei ausbleibender fristgerechter Antwort kann der NB beenden</li><li>bei Stilllegung werden weitere Rollen-Zuordnungen aufgehoben</li></ul>
+    </div>
+  </div>
+
+  <div class="diagram">Kunde             Lieferant (LF)                Netzbetreiber (NB)          MSB / Nachfolger
+  │                       │                              │                         │
+  │ Auszug melden         │                              │                         │
+  ├──────────────────────►│                              │                         │
+  │                       │ Vertrag prüfen               │                         │
+  │                       │ Abmeldung LF-Zuordnung       │                         │
+  │                       ├─────────────────────────────►│                         │
+  │                       │ Bestätigung / Ablehnung      │                         │
+  │                       ◄──────────────────────────────┤                         │
+  │                       │                              │ Ende Netznutzung /      │
+  │                       │                              │ Bilanzierung            │
+  │                       │                              ├───────────────┐         │
+  │                       │                              │               │         │
+  │                       │                              │ ggf. Beginn E/G oder    │
+  │                       │                              │ Nachfolgelieferant      │
+  │                       │                              ├────────────────────────►│
+  │ Endwert               │                              │                         │
+  ├──────────────────────►│◄──── Mess-/Abrechnungsdaten ┤                         │
+  │                       │ Schlussrechnung             │                         │
+  ◄───────────────────────┤                              │                         │</div>
+
+  <div class="success insight"><strong>Wichtig:</strong> „Stilllegung vermutet“ ist zunächst nur eine Information des LF an den NB. Der Netzbetreiber recherchiert beziehungsweise entscheidet den netzseitigen Sachverhalt. Der Lieferant darf nicht allein aus einem Kundenauszug die MaLo stilllegen.</div>
+
+  <div class="quiz" data-key="q3" data-answer="a" data-explain="Der Auszug eines Letztverbrauchers ist ein möglicher Auslöser für das Lieferende des LF. Eine Stilllegung der MaLo ist ein eigener netzseitiger Sachverhalt und folgt nicht automatisch.">
+    <h3>Welche Aussage ist richtig?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Ein Auszug kann das Lieferende auslösen, ohne dass die MaLo stillgelegt wird.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Lieferende ist immer gleichbedeutend mit Ausbau des Zählers.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Nur der Kunde kann die Marktzuordnung direkt beim NB löschen.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="ablauf">
+  <h2>5. Der Prozess als interaktiver Ablauf</h2>
+  <p>Gehe den Auszug aus Sicht eines Lieferantensystems durch. Beachte, dass manche Schritte asynchron und wiederholbar sind.</p>
+  <div class="stepper">
+    <div class="step-indicator" id="stepIndicator"></div>
+    <div class="step-card" id="stepCard"></div>
+    <div class="step-actions"><button class="btn secondary" id="prevStep">Zurück</button><button class="btn" id="nextStep">Nächster Schritt</button></div>
+  </div>
+
+  <div class="order-box">
+    <h3 style="margin-top:0">Reihenfolge selbst bauen</h3>
+    <p>Klicke die Schritte in der fachlich sinnvollsten Reihenfolge an. Einige Prozesse können in der Realität parallel laufen; gesucht ist hier der dominante Lernpfad.</p>
+    <div class="order-options" id="orderOptions"></div>
+    <div class="order-selected" id="orderSelected">Noch kein Schritt gewählt.</div>
+    <button class="btn" id="checkOrder">Reihenfolge prüfen</button> <button class="btn ghost" id="resetOrder">Zurücksetzen</button>
+    <div class="feedback" id="orderFeedback"></div>
+  </div>
+</section>
+
+<section id="fristen">
+  <h2>6. Fristen und Rückwirkung im Strommarkt</h2>
+  <p>Für eine normale verbrauchende Strom-MaLo gilt im aktuell verwendeten GPKE-Lieferende vereinfacht:</p>
+  <div class="timeline">
+    <div class="time-item"><h3>LF sendet unverzüglich</h3><p>Sobald der Abmeldegrund vorliegt, soll der Lieferant die Abmeldung übermitteln.</p></div>
+    <div class="time-item"><h3>Spätester Übermittlungstag</h3><p>Bei den hier betrachteten normalen verbrauchenden MaLo ist die Abmeldung spätestens am Tag <em>vor</em> dem letzten Werktag vor dem gewünschten Zuordnungsende zu senden.</p></div>
+    <div class="time-item"><h3>Antwort des NB</h3><p>Bestätigung oder begründete Ablehnung erfolgt unverzüglich, spätestens bis 06:00 Uhr des ersten Werktags nach dem Übermittlungstag.</p></div>
+    <div class="time-item"><h3>Wirkung zum Zuordnungsende</h3><p>Bei Zustimmung beendet der NB die LF-Zuordnung zum angegebenen Ende und stößt die Folgeprozesse an.</p></div>
+  </div>
+  <div class="warning insight">Praktische Konsequenz: Einen Stromauszug nicht erst nachträglich melden. Der aktuelle Standardprozess ist auf eine zukünftige Zuordnungsänderung mit Vorlauf ausgelegt. Vertragsrechtliche Fragen und eventuelle Korrekturen sind davon zu trennen.</div>
+
+  <h3>Warum Strom und Gas nicht dieselbe Fristenlogik verwenden dürfen</h3>
+  <table>
+    <thead><tr><th>Aspekt</th><th>Strom (GPKE, Fokus dieser Lektion)</th><th>Gas (GeLi Gas, vereinfacht)</th></tr></thead>
+    <tbody>
+      <tr><td>Prozessgeschwindigkeit</td><td>Seit 06.06.2025 stark beschleunigte werktägliche Zuordnungsprozesse.</td><td>Eigene GeLi-Gas-Prozesse und Fristen; nicht automatisch identisch mit Strom.</td></tr>
+      <tr><td>Rückwirkende An-/Abmeldung</td><td>Der aktuelle Lieferende-Prozess ist auf rechtzeitige zukünftige Abmeldung ausgelegt.</td><td>Bei SLP-Fällen können unter den GeLi-Gas-Regeln rückwirkende Konstellationen zulässig sein; RLM ist anders zu behandeln.</td></tr>
+      <tr><td>Architekturfolge</td><td colspan="2"><strong>Keine gemeinsame hart codierte Fristen-Engine.</strong> Regeln nach Sparte, Prozessversion, Messart und Gültigkeitsdatum konfigurieren.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quiz" data-key="q4" data-answer="c" data-explain="Die fachlichen Prozesse und Fristen von GPKE und GeLi Gas unterscheiden sich. Eine gemeinsame unveränderliche Regel würde bei mindestens einer Sparte falsche Ergebnisse erzeugen.">
+    <h3>Wie sollte dein System Strom und Gas behandeln?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Eine einzige feste Frist für beide Sparten verwenden.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Für Gas immer die Stromfrist verdoppeln.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Prozessregeln nach Sparte und gültiger Regelwerksversion parametrisieren.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="labor">
+  <h2>7. Auszugs-Simulator</h2>
+  <p>Das Labor prüft einen vereinfachten Stromfall. Werktage werden nur als Montag bis Freitag berechnet; Feiertage und Sonderfälle sind bewusst nicht enthalten.</p>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="moveDate">Gewünschtes Zuordnungsende</label><input id="moveDate" type="date" value="2026-09-30"></div>
+      <div class="field"><label for="reportDate">Meldung beim Lieferanten</label><input id="reportDate" type="date" value="2026-09-24"></div>
+      <div class="field"><label for="nextAssignment">Situation danach</label><select id="nextAssignment"><option value="new">Nachfolgelieferant ist bekannt</option><option value="none">Kein Nachfolgelieferant bekannt</option><option value="shutdown">Tatsächliche Stilllegung vermutet</option></select></div>
+      <div class="field"><label for="readingStatus">Endwert</label><select id="readingStatus"><option value="validated">Validierter Wert liegt vor</option><option value="customer">Kundenablesung liegt vor</option><option value="missing">Noch kein Endwert</option><option value="conflict">Widersprüchliche Werte</option></select></div>
+    </div>
+    <button class="btn" id="simulate">Fall bewerten</button>
+    <div class="result-card" id="simulationResult" aria-live="polite"></div>
+  </div>
+  <div class="warning insight">Das Labor ist ein Lernmodell und kein produktiver GPKE-Fristenrechner. Feiertage, Übermittlungszeitpunkte, aktuelle Entscheidungsbäume, EEG-/Erzeugungsfälle und bilaterale Sonderregeln müssen produktiv zusätzlich berücksichtigt werden.</div>
+</section>
+
+<section id="szenarien">
+  <h2>8. Was passiert nach dem Auszug?</h2>
+  <p>Öffne die Fälle. Die MaLo „verschwindet“ nur in einem der Szenarien.</p>
+  <div class="scenario-grid">
+    <div class="scenario"><button type="button">Fall A: Nachmieter hat bereits Liefervertrag</button><div class="answer"><strong>Lückenloser Übergang:</strong> Die Zuordnung des bisherigen LF endet und die Zuordnung des neuen LF beginnt passend. Die MaLo und Messung bleiben aktiv.</div></div>
+    <div class="scenario"><button type="button">Fall B: Nachmieter verbraucht ohne vorherigen Vertrag</button><div class="answer"><strong>Auffangzuordnung:</strong> Der NB führt – soweit die gesetzlichen Voraussetzungen vorliegen – den Prozess Beginn der Ersatz-/Grundversorgung aus. Physisch wird nicht wegen der fehlenden Wunschlieferantenzuordnung sofort abgeschaltet.</div></div>
+    <div class="scenario"><button type="button">Fall C: Wohnung steht leer, Strom bleibt eingeschaltet</button><div class="answer"><strong>Kein „Niemandsland“ im Datenmodell:</strong> Die Zuordnungs- und Vertragslage muss anhand der tatsächlichen Anschlussnutzung geklärt werden. Leerstand ist keine automatische Stilllegung.</div></div>
+    <div class="scenario"><button type="button">Fall D: Gebäude wird abgerissen, Anschluss zurückgebaut</button><div class="answer"><strong>Echte Stilllegung:</strong> Der NB beendet die MaLo-bezogenen Zuordnungen; auch MSB- und weitere Rollenbeziehungen können aufgehoben werden. Das ist mehr als ein Kunden-Auszug.</div></div>
+  </div>
+</section>
+
+<section id="messwerte">
+  <h2>9. Endwert und Schlussrechnung</h2>
+  <p>Die Marktkommunikation beantwortet zunächst, <em>wer bis wann zugeordnet ist</em>. Für die Rechnung brauchst du zusätzlich, <em>wie viel bis dahin geliefert wurde</em>.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Quelle</span><strong>Wer hat den Wert ermittelt?</strong><p>Kunde, MSB, Fernauslesung, Ersatzwertbildung oder rechnerische Ermittlung.</p></div>
+    <div class="mini"><span class="badge">Zeitbezug</span><strong>Zu welchem Zeitpunkt gilt er?</strong><p>Ablesedatum und Zuordnungsende können voneinander abweichen.</p></div>
+    <div class="mini"><span class="badge">Qualität</span><strong>Welchen Status besitzt er?</strong><p>Rohwert, plausibilisiert, Ersatzwert, korrigiert oder abgelehnt.</p></div>
+    <div class="mini"><span class="badge">Version</span><strong>Kann er später korrigiert werden?</strong><p>Ja. Eine spätere Messwertkorrektur kann eine Rechnungskorrektur auslösen.</p></div>
+  </div>
+
+  <div class="diagram">Lieferende bestätigt
+        │
+        ├── Endwert fehlt ───────────────► BillingCase = WAITING_FOR_METERING
+        │
+        ├── Endwert widersprüchlich ─────► BillingCase = CLARIFICATION_REQUIRED
+        │
+        ├── Wert valide, Preise fehlen ──► BillingCase = WAITING_FOR_PRICING
+        │
+        ├── Netzdaten fehlen ────────────► BillingCase = WAITING_FOR_NETWORK_DATA
+        │
+        └── alles vollständig ───────────► BillingCase = READY_TO_INVOICE</div>
+
+  <div class="quiz" data-key="q5" data-answer="b" data-explain="Messwerte können nachträglich korrigiert oder ersetzt werden. Ein revisionsfähiges System hält Herkunft, Version, Status und Verwendungsbezug fest und kann daraus eine Rechnungskorrektur ableiten.">
+    <h3>Nach der Schlussrechnung kommt ein korrigierter Endwert. Was ist die robusteste Reaktion?</h3>
+    <label class="option"><input type="radio" name="q5" value="a">A: Den alten Datenbankwert ohne Historie überschreiben.</label>
+    <label class="option"><input type="radio" name="q5" value="b">B: Neue Messwertversion speichern, Auswirkung prüfen und gegebenenfalls Rechnungskorrektur erzeugen.</label>
+    <label class="option"><input type="radio" name="q5" value="c">C: Jede Korrektur ignorieren, sobald eine Rechnung versendet wurde.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>10. Architektur: Nicht ein Status, sondern mehrere Aggregate</h2>
+  <p>Ein einzelnes Feld <span class="code">customer.status = MOVED_OUT</span> kann den Prozess nicht tragen. Trenne mindestens diese fachlichen Zustände:</p>
+  <div class="state-grid">
+    <div class="state"><h3>Vertrag</h3><div class="state-flow"><span class="state-node">ACTIVE</span><span class="arrow">→</span><span class="state-node">TERMINATION_PENDING</span><span class="arrow">→</span><span class="state-node">ENDED</span></div></div>
+    <div class="state"><h3>Marktzuordnung</h3><div class="state-flow"><span class="state-node">ASSIGNED</span><span class="arrow">→</span><span class="state-node">END_REQUESTED</span><span class="arrow">→</span><span class="state-node">ENDED / REJECTED</span></div></div>
+    <div class="state"><h3>Messung</h3><div class="state-flow"><span class="state-node">VALUE_MISSING</span><span class="arrow">→</span><span class="state-node">RECEIVED</span><span class="arrow">→</span><span class="state-node">VALIDATED / CORRECTED</span></div></div>
+    <div class="state"><h3>Abrechnung</h3><div class="state-flow"><span class="state-node">INCOMPLETE</span><span class="arrow">→</span><span class="state-node">READY</span><span class="arrow">→</span><span class="state-node">INVOICED / CORRECTED</span></div></div>
+  </div>
+
+  <h3>Empfohlene Domänenereignisse</h3>
+  <div class="event-stream">
+    <div class="event"><code>CustomerMoveOutReported</code><small>Kundensicht: gewünschtes Auszugsdatum, neue Anschrift, gemeldeter Zählerstand.</small></div>
+    <div class="event"><code>ContractTerminationConfirmed</code><small>Vertragssicht: rechtlich bestätigtes Ende; nicht mit Marktzuordnung verwechseln.</small></div>
+    <div class="event"><code>SupplyEndRequested</code><small>MaKo-Sicht: Abmeldung wurde mit MaLo-ID und Zuordnungsende gesendet.</small></div>
+    <div class="event"><code>SupplyEndConfirmed</code><small>NB hat die Beendigung der LF-Zuordnung bestätigt.</small></div>
+    <div class="event"><code>SupplyEndRejected</code><small>Prozess bleibt klärungsbedürftig; Ablehnungsgrund strukturiert speichern.</small></div>
+    <div class="event"><code>FallbackSupplyStarted</code><small>Eine Ersatz-/Grundversorgungszuordnung wurde für den Folgezeitraum hergestellt.</small></div>
+    <div class="event"><code>EndReadingValidated</code><small>Messwert ist für den relevanten Endzeitpunkt abrechnungsfähig.</small></div>
+    <div class="event"><code>FinalBillingReady</code><small>Mess-, Preis-, Steuer- und Netzdaten sind vollständig.</small></div>
+    <div class="event"><code>FinalInvoiceIssued</code><small>Schlussrechnung wurde unveränderlich versioniert und ausgegeben.</small></div>
+  </div>
+
+  <h3>Zentrale Invarianten</h3>
+  <ul class="checklist">
+    <li>Vertragsende und Zuordnungsende werden niemals stillschweigend gleichgesetzt.</li>
+    <li>Eine bestätigte MaKo-Nachricht wird idempotent verarbeitet.</li>
+    <li>Gültigkeitsintervalle werden als Intervalle gespeichert, nicht nur als aktueller Status.</li>
+    <li>MaLo, Vertrag und Kunde werden nicht kaskadierend gelöscht.</li>
+    <li>Messwerte sind versioniert und tragen Quelle, Qualität, Zeitbezug und Eingangszeitpunkt.</li>
+    <li>Eine Schlussrechnung benötigt eine explizite Vollständigkeitsentscheidung.</li>
+    <li>Regeln sind nach Sparte und Regelwerksversion wirksam datiert.</li>
+  </ul>
+
+  <div class="quiz" data-key="q6" data-answer="c" data-explain="Der Auszug betrifft verschiedene Aggregate und Zeitachsen. Ein Orchestrator beziehungsweise eine Saga kann die Schritte koordinieren, ohne die fachlichen Zustände in einem großen Customer-Objekt zu vermischen.">
+    <h3>Welches Architekturmodell passt am besten?</h3>
+    <label class="option"><input type="radio" name="q6" value="a">A: Ein Customer-Objekt mit einem Boolean <span class="code">movedOut</span>.</label>
+    <label class="option"><input type="radio" name="q6" value="b">B: Bei Auszug sämtliche Kunden-, MaLo- und Messdaten löschen.</label>
+    <label class="option"><input type="radio" name="q6" value="c">C: Getrennte Aggregate und Zustände, koordiniert über einen langlebigen Prozess.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="test">
+  <h2>11. Abschlusstest</h2>
+  <p>Beantworte alle Fragen und werte anschließend deinen Stand aus.</p>
+  <div id="finalQuestions"></div>
+  <button class="btn" id="evaluateFinal">Test auswerten</button>
+  <div class="progress"><span id="progressBar"></span></div>
+  <div class="score" id="finalScore">Noch nicht ausgewertet.</div>
+  <div class="feedback" id="finalFeedback"></div>
+</section>
+
+<section id="transfer">
+  <h2>12. Transferaufgabe für dein Abrechnungssystem</h2>
+  <p>Modelliere einen Auszug als Prozessinstanz mit folgenden Eingaben:</p>
+  <div class="diagram">MoveOutCase
+├── customer_id
+├── contract_id
+├── market_location_id
+├── requested_usage_end
+├── confirmed_contract_end
+├── requested_assignment_end
+├── confirmed_assignment_end
+├── end_reading_reference
+├── successor_assignment_state
+├── market_process_correlation_id
+└── billing_readiness_state</div>
+  <p>Beantworte anschließend:</p>
+  <ol>
+    <li>Welche Felder dürfen vom Kundenservice gesetzt werden?</li>
+    <li>Welche Daten dürfen nur aus einer MaKo-Antwort stammen?</li>
+    <li>Was passiert, wenn der NB die Abmeldung ablehnt?</li>
+    <li>Was passiert, wenn der Endwert drei Wochen später korrigiert wird?</li>
+    <li>Wie verhinderst du, dass eine doppelt empfangene Bestätigung zwei Schlussrechnungen erzeugt?</li>
+  </ol>
+  <div class="success insight">Zielbild: Der Auszug ist kein CRUD-Vorgang, sondern ein langlebiger, revisionsfähiger Workflow über mehrere fachliche Aggregate.</div>
+</section>
+
+<section id="quellen">
+  <h2>Fachliche Quellen und Gültigkeit</h2>
+  <p class="source-note">Die Lektion konzentriert sich auf das fachliche Verständnis. Für eine produktive Implementierung sind stets die aktuell gültigen Prozessbeschreibungen, Entscheidungsbäume, Codelisten, AHB/MIG und Fristenkalender heranzuziehen.</p>
+  <ul class="source-list">
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/831_gpke/gpke_node.html" target="_blank" rel="noopener">Bundesnetzagentur – aktuell gültige GPKE-Fassungen</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2024/BK6-24-174/Beschluss/BK6-24-174_GPKE_Teil2_Lesefassung.pdf?__blob=publicationFile&v=1" target="_blank" rel="noopener">GPKE Teil 2 – Zuordnungsprozesse, insbesondere Prozesse zum Lieferende</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/KuendigungLieferantenwechsel/Lieferantenwechsel/start.html" target="_blank" rel="noopener">Bundesnetzagentur – Verbraucherinformation zum 24-Stunden-Lieferantenwechsel</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/Vertragsarten/Ersatzversorgung/start.html" target="_blank" rel="noopener">Bundesnetzagentur – Ersatzversorgung</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK7-GZ/2019/BK7-19-0001/Downloads/BK7-19-0001_GeLi_Gas_Lesefassung_Anlage_BA.pdf?__blob=publicationFile&v=1" target="_blank" rel="noopener">Bundesnetzagentur – GeLi Gas 2.0</a></li>
+  </ul>
+  <p class="footer">Stand der Lektion: 31. Juli 2026. Vereinfachungen sind ausdrücklich als Lernmodell gekennzeichnet.</p>
+</section>
+</main>
+
+<script>
+  const quizScores = {};
+  document.querySelectorAll('.quiz .check').forEach(button => {
+    button.addEventListener('click', () => {
+      const quiz = button.closest('.quiz');
+      const selected = quiz.querySelector('input[type="radio"]:checked');
+      const feedback = quiz.querySelector('.feedback');
+      if (!selected) {
+        feedback.className = 'feedback bad';
+        feedback.textContent = 'Bitte wähle zuerst eine Antwort.';
+        return;
+      }
+      const correct = selected.value === quiz.dataset.answer;
+      quizScores[quiz.dataset.key] = correct;
+      feedback.className = 'feedback ' + (correct ? 'good' : 'bad');
+      feedback.textContent = (correct ? 'Richtig. ' : 'Noch nicht. ') + quiz.dataset.explain;
+    });
+  });
+
+  const steps = [
+    {actor:'Kunde → LF', tag:'Kundenprozess', risk:'Identifikation', title:'Auszug wird gemeldet', text:'Der Kunde nennt Auszugsdatum, MaLo beziehungsweise Adresse/Zählernummer, neue Rechnungsanschrift und möglichst einen Endzählerstand. Das System legt einen langlebigen MoveOutCase an.', architecture:'Noch keine Marktzuordnung ändern. Eingabe validieren, MaLo identifizieren und Rohdaten mit Quelle und Eingangszeitpunkt speichern.'},
+    {actor:'LF intern', tag:'Vertrag', risk:'Terminabweichung', title:'Vertragsende wird geklärt', text:'Der Lieferant prüft Kündigung, Vertragsklauseln und den bestätigten Endtermin. Das Vertragsende ist eine eigene fachliche Entscheidung.', architecture:'ContractTerminationCase getrennt von MarketAssignment führen. Ein gewünschtes Datum ist nicht automatisch ein bestätigtes Datum.'},
+    {actor:'LF → NB', tag:'GPKE Lieferende', risk:'Frist / MaLo-ID', title:'Abmeldung der LF-Zuordnung', text:'Der LF sendet die Abmeldung mit MaLo-ID, gewünschtem Zuordnungsende und Abmeldegrund. Eine vermutete Stilllegung kann als Information mitgegeben werden.', architecture:'Outbox, Korrelation, Prozessversion und Idempotenzschlüssel speichern. Der gesendete Payload bleibt revisionsfähig nachvollziehbar.'},
+    {actor:'NB → LF', tag:'Antwort', risk:'Ablehnung', title:'NB bestätigt oder lehnt ab', text:'Der NB beendet die Zuordnung zum Termin oder sendet eine begründete Ablehnung. Bei einer Ablehnung bleibt die LF-Zuordnung zunächst bestehen.', architecture:'Kein technischer Fehlerstatus. Ablehnung als fachliches Ergebnis mit Reason Code und Klärungsworkflow modellieren.'},
+    {actor:'NB / Markt', tag:'Folgeprozesse', risk:'Lücke', title:'Folgezuordnung wird hergestellt', text:'Ein Nachfolgelieferant beginnt, oder der NB stößt gegebenenfalls Grund-/Ersatzversorgung an. Bei echter Stilllegung werden weitere Rollenbeziehungen beendet.', architecture:'Zuordnungen als nicht überlappende, gültig datierte Intervalle führen. Fallback-Supply ist eine echte Marktzuordnung, kein Nullwert.'},
+    {actor:'MSB / NB → LF', tag:'Messung', risk:'Wertqualität', title:'Endwert wird bereitgestellt', text:'Der Endwert wird empfangen, plausibilisiert und dem Endzeitpunkt zugeordnet. Kundenablesung und abrechnungsfähiger Wert können unterschiedliche Versionen sein.', architecture:'MeteringValue mit source, quality, valid_time, received_time und version modellieren.'},
+    {actor:'LF intern', tag:'Abrechnung', risk:'Vollständigkeit', title:'Abrechnungsbereitschaft wird geprüft', text:'Messwerte, Preise, Steuern, Netznutzungs- und weitere Kostenbestandteile müssen vollständig sein. Erst dann ist die Schlussperiode abrechenbar.', architecture:'Explizites BillingReadiness-Objekt statt „best effort“-Rechnung. Fehlende Voraussetzungen strukturiert ausweisen.'},
+    {actor:'LF → Kunde', tag:'Schlussrechnung', risk:'Korrektur', title:'Schlussrechnung wird erstellt', text:'Die Schlussrechnung wird versioniert ausgegeben. Spätere Messwert- oder Preiskorrekturen führen nachvollziehbar zu einer Rechnungskorrektur.', architecture:'Ausgestellte Rechnung niemals still überschreiben. Original, Storno/Korrektur und fachliche Ursache verknüpfen.'}
+  ];
+  let stepIndex = 0;
+  const stepCard = document.getElementById('stepCard');
+  const stepIndicator = document.getElementById('stepIndicator');
+  function renderStep(){
+    stepIndicator.innerHTML = steps.map((_,i)=>`<span class="step-dot ${i<=stepIndex?'done':''}"></span>`).join('');
+    const s = steps[stepIndex];
+    stepCard.innerHTML = `<div class="step-meta"><span class="pill actor">${s.actor}</span><span class="pill">${s.tag}</span><span class="pill risk">Risiko: ${s.risk}</span></div><h3>${stepIndex+1}. ${s.title}</h3><p>${s.text}</p><div class="insight"><strong>Architekturbrille:</strong> ${s.architecture}</div>`;
+    document.getElementById('prevStep').disabled = stepIndex===0;
+    document.getElementById('nextStep').textContent = stepIndex===steps.length-1 ? 'Von vorn' : 'Nächster Schritt';
+  }
+  document.getElementById('prevStep').addEventListener('click',()=>{if(stepIndex>0){stepIndex--;renderStep();}});
+  document.getElementById('nextStep').addEventListener('click',()=>{stepIndex = stepIndex===steps.length-1 ? 0 : stepIndex+1;renderStep();});
+  renderStep();
+
+  const orderSteps = [
+    {id:'report', text:'Kunde meldet den Auszug'},
+    {id:'contract', text:'LF bestätigt das Vertragsende'},
+    {id:'request', text:'LF meldet die Zuordnung beim NB ab'},
+    {id:'confirm', text:'NB bestätigt das Zuordnungsende'},
+    {id:'reading', text:'Endwert wird validiert'},
+    {id:'invoice', text:'Schlussrechnung wird erstellt'}
+  ];
+  const correctOrder = ['report','contract','request','confirm','reading','invoice'];
+  let selectedOrder = [];
+  const orderOptions = document.getElementById('orderOptions');
+  const orderSelected = document.getElementById('orderSelected');
+  function renderOrder(){
+    orderOptions.innerHTML = orderSteps.filter(s=>!selectedOrder.includes(s.id)).map(s=>`<button class="order-option" data-id="${s.id}">${s.text}</button>`).join('');
+    orderSelected.innerHTML = selectedOrder.length ? selectedOrder.map(id=>`<span class="order-token">${orderSteps.find(s=>s.id===id).text}</span>`).join(' → ') : 'Noch kein Schritt gewählt.';
+    orderOptions.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{selectedOrder.push(b.dataset.id);renderOrder();}));
+  }
+  document.getElementById('checkOrder').addEventListener('click',()=>{
+    const fb=document.getElementById('orderFeedback');
+    const ok=selectedOrder.length===correctOrder.length && selectedOrder.every((v,i)=>v===correctOrder[i]);
+    fb.className='feedback '+(ok?'good':'bad');
+    fb.textContent=ok?'Richtig. Das ist der dominante fachliche Lernpfad. Messwertbeschaffung kann in der Praxis bereits parallel beginnen.':'Die Reihenfolge passt noch nicht. Denke zuerst an Kundenereignis und Vertragsklärung, dann an Marktzuordnung und zuletzt an die abrechnungsfähige Schlussperiode.';
+  });
+  document.getElementById('resetOrder').addEventListener('click',()=>{selectedOrder=[];document.getElementById('orderFeedback').className='feedback';renderOrder();});
+  renderOrder();
+
+  function parseDate(value){ const [y,m,d]=value.split('-').map(Number); return new Date(Date.UTC(y,m-1,d)); }
+  function formatDate(date){ return new Intl.DateTimeFormat('de-DE',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric'}).format(date); }
+  function previousWeekday(date){
+    const d=new Date(date); d.setUTCDate(d.getUTCDate()-1);
+    while(d.getUTCDay()===0 || d.getUTCDay()===6){ d.setUTCDate(d.getUTCDate()-1); }
+    return d;
+  }
+  document.getElementById('simulate').addEventListener('click',()=>{
+    const end=parseDate(document.getElementById('moveDate').value);
+    const report=parseDate(document.getElementById('reportDate').value);
+    const next=document.getElementById('nextAssignment').value;
+    const reading=document.getElementById('readingStatus').value;
+    const lastWtBeforeEnd=previousWeekday(end);
+    const latestTransmission=previousWeekday(lastWtBeforeEnd);
+    const timely=report.getTime()<=latestTransmission.getTime();
+    let assignmentText='', assignmentClass='';
+    if(next==='new'){assignmentText='Nachfolgelieferant sollte lückenlos zum Folgezeitraum zugeordnet werden.';assignmentClass='ok';}
+    else if(next==='none'){assignmentText='Ohne Nachfolgelieferant ist eine Auffangzuordnung zur Grund-/Ersatzversorgung zu prüfen.';assignmentClass='warntext';}
+    else {assignmentText='Stilllegung ist nur eine Vermutung des LF; der NB muss den netzseitigen Sachverhalt klären.';assignmentClass='warntext';}
+    let readingText='', readingClass='';
+    if(reading==='validated'){readingText='Messseitig grundsätzlich bereit; weitere Abrechnungsdaten bleiben zu prüfen.';readingClass='ok';}
+    else if(reading==='customer'){readingText='Kundenablesung speichern und plausibilisieren; nicht ungeprüft als endgültigen Wert behandeln.';readingClass='warntext';}
+    else if(reading==='missing'){readingText='Schlussrechnung wartet auf einen abrechnungsfähigen Endwert.';readingClass='badtext';}
+    else {readingText='Klärungsfall: Werte versioniert speichern und fachliche Priorität/Qualität bestimmen.';readingClass='badtext';}
+    document.getElementById('simulationResult').innerHTML = `
+      <div class="result-line"><strong>Gewünschtes Zuordnungsende</strong><span>${formatDate(end)}</span></div>
+      <div class="result-line"><strong>Vereinfachter spätester Meldetag</strong><span>${formatDate(latestTransmission)}</span></div>
+      <div class="result-line"><strong>Bewertung der Meldung</strong><span class="${timely?'ok':'badtext'}">${timely?'Im Lernmodell rechtzeitig':'Im Lernmodell zu spät für das gewünschte Ende'}</span></div>
+      <div class="result-line"><strong>Folgezuordnung</strong><span class="${assignmentClass}">${assignmentText}</span></div>
+      <div class="result-line"><strong>Mess-/Abrechnungsstatus</strong><span class="${readingClass}">${readingText}</span></div>
+      <div class="result-text">Hinweis: Feiertage und produktive Detailregeln sind nicht berücksichtigt.</div>`;
+  });
+  document.getElementById('simulate').click();
+
+  document.querySelectorAll('.scenario button').forEach(btn=>btn.addEventListener('click',()=>btn.parentElement.classList.toggle('open')));
+
+  const finalQuestions = [
+    {q:'1. Was beschreibt das GPKE-Lieferende primär?', options:['Das Ende der physischen Stromerzeugung','Das Ende der LF-Zuordnung zu einer MaLo beziehungsweise Tranche','Das Löschen des Kundenkontos'], a:1},
+    {q:'2. Was folgt aus einem Kundenauszug nicht automatisch?', options:['Eine Kundenmeldung','Eine Stilllegung der Marktlokation','Eine mögliche Vertragsbeendigung'], a:1},
+    {q:'3. Wer bestätigt oder lehnt die Abmeldung der LF-Zuordnung ab?', options:['Netzbetreiber','Kunde','Bilanzkreisverantwortlicher des Kunden'], a:0},
+    {q:'4. Was kann nach dem Lieferende ohne Nachfolgelieferant erfolgen?', options:['Die MaLo wird immer gelöscht','Beginn der Ersatz-/Grundversorgung, soweit erforderlich und zulässig','Der alte LF bleibt für immer zugeordnet'], a:1},
+    {q:'5. Warum ist ein bestätigtes Zuordnungsende nicht gleich Billing Ready?', options:['Weil Mess-, Preis- oder Netzdaten fehlen können','Weil der NB nie Messwerte liefert','Weil Schlussrechnungen nur jährlich zulässig sind'], a:0},
+    {q:'6. Wie sollten Messwertkorrekturen gespeichert werden?', options:['Alten Wert ohne Historie überschreiben','Als neue Version mit Quelle, Qualität und Zeitbezug','Nur als Freitext im CRM'], a:1},
+    {q:'7. Welche Modellierung ist am robustesten?', options:['Ein Boolean movedOut','Getrennte Vertrags-, Zuordnungs-, Mess- und Billing-Zustände','Löschen aller Daten zum Auszug'], a:1},
+    {q:'8. Wie behandelst du eine NB-Ablehnung?', options:['Als fachliches Ergebnis mit Reason Code und Klärungsworkflow','Als endgültigen Systemabsturz','Automatisch ignorieren'], a:0},
+    {q:'9. Warum sollten Strom und Gas getrennte Regelkonfigurationen besitzen?', options:['Weil die Prozesse und Fristen unterschiedlich sein können','Weil Gas keine Marktkommunikation nutzt','Weil Strom keine Messwerte hat'], a:0},
+    {q:'10. Was ist die wichtigste zeitliche Modellierungsregel?', options:['Nur den aktuellen Status speichern','Alle Daten auf das Auszugsdatum setzen','Gültigkeitsintervalle und Wissens-/Eingangszeitpunkte getrennt halten'], a:2}
+  ];
+  const fq=document.getElementById('finalQuestions');
+  fq.innerHTML=finalQuestions.map((item,i)=>`<div class="quiz"><h3>${item.q}</h3>${item.options.map((o,j)=>`<label class="option"><input type="radio" name="final${i}" value="${j}">${String.fromCharCode(65+j)}: ${o}</label>`).join('')}</div>`).join('');
+  document.getElementById('evaluateFinal').addEventListener('click',()=>{
+    let score=0, answered=0;
+    finalQuestions.forEach((item,i)=>{const s=document.querySelector(`input[name="final${i}"]:checked`);if(s){answered++;if(Number(s.value)===item.a)score++;}});
+    const pct=Math.round(score/finalQuestions.length*100);
+    document.getElementById('progressBar').style.width=pct+'%';
+    document.getElementById('finalScore').textContent=`${score} von ${finalQuestions.length} richtig (${answered} beantwortet)`;
+    const fb=document.getElementById('finalFeedback');
+    if(answered<finalQuestions.length){fb.className='feedback bad';fb.textContent='Bitte beantworte noch alle Fragen. Deine bisherige Punktzahl wurde trotzdem berechnet.';}
+    else if(score>=9){fb.className='feedback good';fb.textContent='Sehr sicher. Du trennst Kundenereignis, Vertrag, Marktzuordnung, Messung und Abrechnung sauber.';}
+    else if(score>=7){fb.className='feedback good';fb.textContent='Gute Grundlage. Wiederhole besonders die getrennten Zeitachsen und Folgezuordnungen.';}
+    else {fb.className='feedback bad';fb.textContent='Wiederhole die Abschnitte „Fünf Enden“, „Zwei Richtungen“ und „Architektur“ und starte den Test erneut.';}
+  });
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>

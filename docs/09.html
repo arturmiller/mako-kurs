@@ -1,1 +1,550 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'09',minutes:15,title:'Vom Tarif zur Rechnung',lede:'Billing ist die nachvollziehbare Bewertung von Mengen und Zeitanteilen mit versionierten Regeln.',objectives:['Arbeits- und Grundpreis unterschiedlich berechnen','Abrechnungszeiträume an Regeländerungen segmentieren','Rechnungsergebnis und Berechnungsnachweis trennen'],chapters:[{title:'Zeit schneidet die Rechnung',html:'<p>Beginnt die Belieferung am 10. Februar, ändert sich der Arbeitspreis am 15. April und die Steuerregel am 1. Juli, entstehen mindestens drei Segmente. Jedes Segment nutzt die dort gültigen Mengen und Regeln.</p><pre class="model">Segment = Schnittmenge aus\nLieferzeit × Tarifgültigkeit × Steuerregel × Messdatenlage</pre>'},{title:'Bewerten statt raten',html:'<p>Arbeitspreis bewertet Energie (z. B. kWh). Ein Grundpreis benötigt eine explizite Proratisierungsregel. Rundung, Steuer und Preisbestandteile müssen versioniert und in definierter Reihenfolge angewendet werden.</p><p class="callout">Geld immer als Dezimalwert plus Währung modellieren; Rundung ist eine fachliche Regel.</p>'}],quiz:[{question:'Wie viele Segmente entstehen bei Lieferbeginn plus zwei Regelwechseln mindestens?',options:['Eins','Zwei','Drei'],answer:2},{question:'Was benötigt ein unterjähriger Grundpreis?',options:['Eine definierte Proratisierungsregel','Immer eine kWh-Menge','Eine Zählernummer als Preis'],answer:0}],task:{title:'Entwirf den Calculation Trace',prompt:'Wie erklärst du einen Rechnungsbetrag später revisionssicher?',answer:'<pre class="model">InvoiceLine\n ├─ period + quantityVersion\n ├─ priceRuleVersion + taxRuleVersion\n ├─ operands + intermediateResults\n └─ roundingRule + finalAmount</pre><p>Der Trace ist unveränderlich; eine Korrektur erzeugt eine neue Rechnung bzw. Version statt stiller Mutation.</p>'},sources:[['Bundesnetzagentur: Stromrechnung verstehen','https://www.bundesnetzagentur.de/DE/Vportal/Energie/RechnungenSperrungen/Rechnungen-table.html'],['Bundesnetzagentur: Netzentgelte','https://www.bundesnetzagentur.de/DE/Fachthemen/ElektrizitaetundGas/Netzentgelte/start.html']],prev:'08',next:'10'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zur Energielieferabrechnung: Tarifversionen, Preiszeitraumsplitting, Grund- und Arbeitspreis, Abschläge, Umsatzsteuer, Rechnungslauf, Korrekturen und Softwarearchitektur." />
+  <title>Lektion 9 – Vom Tarif zur Kundenrechnung</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#5b36c9;--accent2:#0b6b63;--accent3:#2457d6;--soft:#f0ecff;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--ink:#0f172a;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 88% 10%,rgba(255,255,255,.18),transparent 30%),linear-gradient(135deg,#24125f 0%,#5b36c9 47%,#0b6b63 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1080px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.14);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.35rem);line-height:1.02;max-width:970px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:920px;color:rgba(255,255,255,.91);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(245,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,44px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#49309c;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}.success{border-left-color:var(--accent2);background:#e8f7f4;color:#115e59}.danger{border-left-color:var(--bad);background:var(--badsoft);color:#7a271a}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:var(--ink);color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.92rem}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#b29ff1;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.green{background:var(--accent2)}.btn.blue{background:var(--accent3)}.btn.ghost{background:#f1efff;color:#4c2fb2;border:1px solid #d9d0ff}.btn:hover{filter:brightness(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .layer-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:24px 0}.layer{border:1px solid var(--line);border-radius:16px;padding:17px;background:linear-gradient(180deg,#fff,#f8faff)}.layer .n{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900}.layer h3{font-size:1rem;margin:10px 0 6px}.layer p{font-size:.91rem;margin:0;color:#475467}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}.lane{border:1px solid var(--line);border-radius:18px;padding:20px;background:#fbfcff}.lane h3{margin:0 0 10px}.lane .number{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900;margin-right:8px}
+    .timeline{display:grid;gap:12px;margin:24px 0}.period{display:grid;grid-template-columns:140px 1fr auto;gap:14px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:15px;background:#fff}.period .date{font-weight:900;color:#4c2fb2}.period .amount{font-weight:900;color:#0f5f59}
+    .stepper{border:1px solid #cfc4f8;background:linear-gradient(135deg,#f7f4ff,#f1fbf9);border-radius:18px;padding:22px;margin-top:22px}.step-indicator{display:flex;gap:8px;align-items:center;margin-bottom:18px}.step-dot{height:8px;flex:1;border-radius:999px;background:#d9e2ef}.step-dot.done{background:linear-gradient(90deg,var(--accent),var(--accent2))}.step-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:285px}.step-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#f0ecff;color:#49309c;font-size:.8rem;font-weight:850}.pill.actor{background:#e8f7f4;color:#115e59}.pill.risk{background:#fff7e8;color:#8a4b08}.step-card h3{margin:8px 0}.step-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .order-box{border:1px solid #cfc4f8;border-radius:18px;padding:20px;background:#f8f6ff;margin-top:22px}.order-options{display:grid;gap:10px;margin-top:14px}.order-option{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;font-weight:700}.order-option:hover{border-color:#b29ff1}.order-selected{margin-top:16px;padding:14px;border-radius:12px;background:#0f172a;color:#e5edff;min-height:55px}.order-token{display:inline-block;margin:3px;padding:5px 8px;border-radius:8px;background:#334155;font-size:.84rem;cursor:pointer}.order-token:hover{background:#475569}.random-note{font-size:.9rem;color:#475467;margin:7px 0 0}
+    .lab{border:1px solid #cfc4f8;background:linear-gradient(135deg,#f8f6ff,#f2fbfa);border-radius:18px;padding:22px;margin-top:22px}.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:9px}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px}.result-line:last-child{border-bottom:0;padding-bottom:0}.result-text{color:#dbeafe}.ok{color:#86efac}.warntext{color:#fde68a}.badtext{color:#fca5a5}
+    .formula{border:1px dashed #a68eea;border-radius:14px;padding:17px;background:#faf8ff;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:auto}
+    .value-table{width:100%;border-collapse:collapse;margin-top:18px}.value-table th,.value-table td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}.value-table th{background:#f8fafc}.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .invoice{border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden;margin-top:22px}.invoice-head{display:flex;justify-content:space-between;gap:20px;padding:22px;background:linear-gradient(135deg,#f5f1ff,#eef9f7);border-bottom:1px solid var(--line)}.invoice h3{margin:0}.invoice-body{padding:22px}.invoice-row{display:grid;grid-template-columns:1fr 120px 130px;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}.invoice-row.head{font-weight:850;color:#475467}.invoice-row.total{font-size:1.08rem;font-weight:900;border-bottom:0}.invoice-row.balance{background:#f7f9fc;margin:10px -12px 0;padding:14px 12px;border-radius:10px;border-bottom:0}.right{text-align:right}
+    .state-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-top:20px}.state{border:1px solid var(--line);border-radius:15px;padding:17px;background:#fff}.state strong{display:block;margin-bottom:6px}.state.active{border-color:#a995eb;background:#f8f6ff}.state.final{border-color:#7fc9c1;background:#f2fbf9}
+    .arch{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:22px}.arch-card{border:1px solid var(--line);border-radius:16px;padding:17px;background:#fff;position:relative}.arch-card:not(:last-child):after{content:"→";position:absolute;right:-12px;top:45%;z-index:2;font-weight:900;color:var(--accent)}.arch-card strong{display:block;margin-bottom:7px}.arch-card small{color:var(--muted)}
+    .final-score{display:none;margin-top:18px;padding:18px;border-radius:15px;background:#0f172a;color:#e7efff;font-weight:750}
+    .sources a{color:#3f2a9b;word-break:break-word}.sources li{margin:9px 0}
+    footer{text-align:center;color:var(--muted);padding:28px 0 0;font-size:.92rem}
+    @media(max-width:900px){.layer-grid{grid-template-columns:repeat(2,1fr)}.arch{grid-template-columns:repeat(2,1fr)}.arch-card:after{display:none}.invoice-row{grid-template-columns:1fr 90px 105px}}
+    @media(max-width:680px){.split{grid-template-columns:1fr}.layer-grid,.arch{grid-template-columns:1fr}.period{grid-template-columns:1fr}.invoice-head{display:block}.invoice-head>div+div{margin-top:12px}.invoice-row{grid-template-columns:1fr 84px}.invoice-row span:nth-child(2){display:none}.right{text-align:right}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 9</span>
+    <h1>Vom Tarif zur Kundenrechnung</h1>
+    <p class="subtitle">Wie aus einer abrechenbaren Energiemenge, zeitabhängigen Preisen, Steuern, Abschlägen und Korrekturen eine nachvollziehbare und revisionssichere Strom- oder Gasrechnung entsteht.</p>
+    <div class="hero-note">🧮 Interaktive Preisberechnung · 🧾 Rechnungslauf · 🔀 zufällig gemischte Reihenfolgeaufgabe</div>
+  </div>
+</header>
+<nav><div class="wrap nav-inner">
+  <a href="#ziele">Lernziele</a><a href="#denkmodell">Denkmodell</a><a href="#preis">Preislogik</a><a href="#zeit">Zeit</a><a href="#lauf">Rechnungslauf</a><a href="#reihenfolge">Reihenfolge</a><a href="#labore">Labore</a><a href="#rechnung">Rechnung</a><a href="#korrektur">Korrekturen</a><a href="#architektur">Architektur</a><a href="#test">Test</a>
+</div></nav>
+<main class="wrap">
+
+<section id="ziele">
+  <h2>1. Lernziele</h2>
+  <p class="lead">Am Ende dieser Lektion kannst du erklären, warum Billing kein simples <span class="code">verbrauch × preis</span> ist und welche fachlichen Objekte ein belastbares Abrechnungssystem benötigt.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Bewertung</span><strong>Menge wird zu Geld</strong><p>Du trennst Energiemenge, Preisregel, Preisversion und monetäres Ergebnis.</p></div>
+    <div class="mini"><span class="badge">Zeit</span><strong>Perioden schneiden</strong><p>Du kannst Preis-, Vertrags-, Mess- und Steueränderungen in abrechenbare Teilzeiträume zerlegen.</p></div>
+    <div class="mini"><span class="badge">Finanzen</span><strong>Forderung statt PDF</strong><p>Du verstehst Rechnung, Abschlag, Zahlung, Guthaben und offene Forderung als getrennte Objekte.</p></div>
+    <div class="mini"><span class="badge">Revision</span><strong>Reproduzierbare Ergebnisse</strong><p>Du kannst eine Rechnung später exakt aus den damals verwendeten Eingaben und Regeln erklären.</p></div>
+  </div>
+</section>
+
+<section id="denkmodell">
+  <h2>2. Die wichtigste Trennung: Verbrauch ist noch keine Rechnung</h2>
+  <p>Aus Lektion 8 liegt für Herrn Müller eine validierte Energiemenge von <strong>3.600 kWh</strong> vor. Sein Tarif enthält einen Arbeitspreis von <strong>32 ct/kWh</strong> und einen Grundpreis von <strong>144 € pro Jahr</strong>.</p>
+  <div class="formula">3.600 kWh × 0,32 €/kWh + 144 € = 1.296 €</div>
+  <p>Das sieht korrekt aus. Trotzdem fehlen möglicherweise entscheidende Informationen:</p>
+  <div class="grid">
+    <div class="mini"><strong>Galt der Preis im gesamten Zeitraum?</strong><p>Vielleicht wurde der Arbeitspreis am 1. Juli geändert.</p></div>
+    <div class="mini"><strong>War der Kunde ein ganzes Jahr in Belieferung?</strong><p>Grundpreise müssen auf den tatsächlichen Lieferzeitraum abgegrenzt werden.</p></div>
+    <div class="mini"><strong>Ist der Preis brutto oder netto?</strong><p>Rundung und Umsatzsteuer dürfen nicht implizit bleiben.</p></div>
+    <div class="mini"><strong>Was wurde bereits gezahlt?</strong><p>Abschläge mindern den offenen Saldo, nicht die erbrachte Energielieferung.</p></div>
+  </div>
+  <div class="insight"><strong>Kernmodell:</strong> Eine Rechnung bewertet fachlich freigegebene Mengen und Zeiträume mit den damals gültigen Preis- und Abgabenregeln. Anschließend werden Zahlungen, Abschläge, Boni und Gutschriften auf den resultierenden Saldo angerechnet.</div>
+  <div class="diagram">Messwertdomäne               Vertrags-/Tarifdomäne            Regelwerk
+abrechenbare Menge ─────────► gültige Preisversion ─────────► Steuer / Abgaben
+          │                              │                            │
+          └──────────────────────────────┼────────────────────────────┘
+                                         ▼
+                                   Bewertungszeilen
+                                         ▼
+                                      Rechnung
+                                         ▼
+                         Forderung / Guthaben / Fälligkeit
+                                         ▲
+                                         │
+                              Abschläge und Zahlungen</div>
+
+  <div class="quiz" data-key="q1" data-answer="b" data-explain="Abschläge sind Vorauszahlungen auf den späteren Rechnungssaldo. Sie reduzieren nicht die bewertete Lieferleistung, sondern werden anschließend mit der Forderung verrechnet.">
+    <h3>Wo wirken bereits gezahlte Abschläge fachlich?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Sie verringern nachträglich die gelieferte Energiemenge.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Sie werden mit dem aus der Rechnung entstehenden Saldo verrechnet.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Sie verändern den Arbeitspreis.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="preis">
+  <h2>3. Tarif, Preisplan und Preisversion</h2>
+  <p>Im Alltag sagt man häufig einfach „Tarif“. Für ein Abrechnungssystem ist diese Bezeichnung zu grob.</p>
+  <table class="value-table">
+    <thead><tr><th>Objekt</th><th>Aufgabe</th><th>Beispiel</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Produkt / Tarif</strong></td><td>Vermarktete Vertragsvariante.</td><td>Ökostrom Zuhause 24</td></tr>
+      <tr><td><strong>Preisplan</strong></td><td>Struktur der berechenbaren Komponenten.</td><td>Arbeitspreis + Grundpreis + Bonus</td></tr>
+      <tr><td><strong>Preisversion</strong></td><td>Zeitlich gültige konkrete Werte.</td><td>01.01.–30.06.: 31 ct/kWh</td></tr>
+      <tr><td><strong>Preisregel</strong></td><td>Mathematische oder logische Bewertungsregel.</td><td>Menge × Arbeitspreis</td></tr>
+      <tr><td><strong>Preiszuordnung</strong></td><td>Welcher Vertrag nutzt wann welche Version?</td><td>Vertrag V-4711 → Version P-3</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Typische Preiskomponenten</h3>
+  <div class="layer-grid">
+    <div class="layer"><span class="n">1</span><h3>Arbeitspreis</h3><p>Verbrauchsabhängig, meist ct/kWh.</p></div>
+    <div class="layer"><span class="n">2</span><h3>Grundpreis</h3><p>Zeitabhängig, meist €/Monat oder €/Jahr.</p></div>
+    <div class="layer"><span class="n">3</span><h3>Leistungspreis</h3><p>Bei leistungsgemessenen Kunden, z. B. €/kW.</p></div>
+    <div class="layer"><span class="n">4</span><h3>Bonus / Rabatt</h3><p>Bedingungsabhängige Gutschrift oder Preisreduktion.</p></div>
+    <div class="layer"><span class="n">5</span><h3>Weiteres</h3><p>Messpreis, Mindestpreis, Staffel, Zeitfenster oder dynamische Preise.</p></div>
+  </div>
+
+  <div class="warning insight"><strong>Kein universelles Feld <span class="code">unit_price</span>:</strong> Ein Tarif kann mehrere gleichzeitige Preisdimensionen besitzen. Die Bewertungsregel muss Einheit, Bezugsgröße, Gültigkeit, Rundung und Steuerbehandlung kennen.</div>
+
+  <div class="quiz" data-key="q2" data-answer="c" data-explain="Eine Preisversion enthält die konkreten, zeitlich gültigen Werte. Das Produkt kann lange bestehen, während sich seine Preisversionen ändern.">
+    <h3>Welches Objekt sollte eine Preisänderung zum 1. Juli am ehesten abbilden?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Eine Änderung der MaLo-ID.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Eine Änderung des Messgeräts.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Eine neue Preisversion mit einem neuen Gültigkeitsbeginn.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="zeit">
+  <h2>4. Billing ist vor allem Zeitrechnung</h2>
+  <p>Der Abrechnungszeitraum muss an allen fachlich relevanten Änderungszeitpunkten geschnitten werden.</p>
+  <div class="diagram">Abrechnungszeitraum: 01.01. ───────────────────────────────── 31.12.
+
+Preisänderung:                               01.07.
+Zählerwechsel:                15.04.
+Vertragsbeginn:      10.02.
+Steuer-/Regeländerung:                                  01.10.
+
+Ergebnis:
+10.02.–14.04. | 15.04.–30.06. | 01.07.–30.09. | 01.10.–31.12.
+       ▲               ▲                ▲                ▲
+     eigene Bewertungsperiode mit reproduzierbaren Eingaben</div>
+
+  <p>Ein Schnitt bedeutet nicht automatisch, dass sich der Verbrauch gleichmäßig verteilt. Die Mengenabgrenzung hängt von der verfügbaren Messung ab:</p>
+  <div class="split">
+    <div class="lane"><h3><span class="number">A</span>Gemessene Teilmengen</h3><p>Bei Intervallmessung können Teilzeiträume aus tatsächlichen Werten summiert werden.</p></div>
+    <div class="lane"><h3><span class="number">B</span>Abgegrenzte Teilmengen</h3><p>Bei Ständen können Zwischenmengen anhand zulässiger Verfahren rechnerisch abgegrenzt werden. Quelle und Methode müssen dokumentiert bleiben.</p></div>
+  </div>
+
+  <h3>Grundpreis: Tage, Monate oder kaufmännische Regel?</h3>
+  <p>Ein jährlicher Grundpreis von 144 € kann bei 100 Liefertagen nicht einfach immer durch zwölf geteilt werden. Das Vertragspreismodell muss festlegen, wie unterjährige Zeiträume bewertet werden – beispielsweise taggenau oder nach vereinbarter Monatslogik.</p>
+  <div class="insight"><strong>Architekturregel:</strong> Die Proratisierung gehört in eine versionierte Preisregel. Sie darf nicht als versteckte Annahme in einem Rechnungs-Template oder SQL-Statement liegen.</div>
+
+  <div class="quiz" data-key="q3" data-answer="a" data-explain="Jeder relevante Änderungszeitpunkt kann eine neue Bewertungsperiode erzeugen. So lässt sich für jede Teilmenge der korrekte Preis und das korrekte Regelwerk anwenden.">
+    <h3>Warum wird ein Abrechnungszeitraum an einer Preisänderung geschnitten?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Damit jede Teilmenge mit der tatsächlich gültigen Preisversion bewertet wird.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Damit die MaLo eine neue Identität erhält.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Weil jede Preisänderung einen Zählerwechsel auslöst.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="lauf">
+  <h2>5. Der Rechnungslauf als fachlicher Prozess</h2>
+  <p>Gehe durch einen vereinfachten Rechnungslauf. In produktiven Systemen können einzelne Schritte parallel, wiederholt oder durch fachliche Sperren unterbrochen werden.</p>
+  <div class="stepper">
+    <div class="step-indicator" id="stepIndicator"></div>
+    <div class="step-card" id="stepCard"></div>
+    <div class="step-actions"><button class="btn secondary" id="prevStep">Zurück</button><button class="btn" id="nextStep">Nächster Schritt</button></div>
+  </div>
+  <div class="warning insight"><strong>Wichtig:</strong> „Rechnung erstellt“ und „PDF erzeugt“ sind nicht dasselbe. Die fachliche Rechnung mit ihren Positionen, Summen und Referenzen muss vor dem Dokument existieren.</div>
+</section>
+
+<section id="reihenfolge">
+  <h2>6. Reihenfolgeaufgabe: Vom Messwert zum offenen Posten</h2>
+  <p>Die Schritte werden bei jedem Laden und bei „Neu mischen“ zufällig angeordnet. Klicke sie in der fachlich sinnvollsten Reihenfolge an.</p>
+  <div class="order-box">
+    <div class="order-options" id="orderOptions"></div>
+    <p class="random-note" id="shuffleInfo"></p>
+    <div class="order-selected" id="orderSelected">Noch kein Schritt gewählt.</div>
+    <button class="btn" id="checkOrder">Reihenfolge prüfen</button> <button class="btn ghost" id="resetOrder">Neu mischen</button>
+    <div class="feedback" id="orderFeedback"></div>
+  </div>
+</section>
+
+<section id="labore">
+  <h2>7. Rechenlabor A: Preisänderung innerhalb des Jahres</h2>
+  <p>Das Labor nimmt zwei bereits abgegrenzte Energiemengen an. Damit konzentrieren wir uns auf die monetäre Bewertung.</p>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="qty1">Menge Periode 1 (kWh)</label><input id="qty1" type="number" step="0.001" value="1700"></div>
+      <div class="field"><label for="price1">Arbeitspreis 1 (ct/kWh)</label><input id="price1" type="number" step="0.001" value="31.2"></div>
+      <div class="field"><label for="qty2">Menge Periode 2 (kWh)</label><input id="qty2" type="number" step="0.001" value="1900"></div>
+      <div class="field"><label for="price2">Arbeitspreis 2 (ct/kWh)</label><input id="price2" type="number" step="0.001" value="34.8"></div>
+      <div class="field"><label for="baseAnnual">Grundpreis (€/Jahr)</label><input id="baseAnnual" type="number" step="0.01" value="144"></div>
+      <div class="field"><label for="supplyDays">Liefertage</label><input id="supplyDays" type="number" min="1" max="366" value="365"></div>
+      <div class="field"><label for="vatRate">Umsatzsteuer (%)</label><input id="vatRate" type="number" step="0.01" value="19"></div>
+      <div class="field"><label for="priceMode">Eingabepreise</label><select id="priceMode"><option value="gross" selected>brutto</option><option value="net">netto</option></select></div>
+    </div>
+    <button class="btn green" id="calcTariff">Berechnen</button>
+    <div class="result-card" id="tariffResult"></div>
+  </div>
+  <p class="warning insight">Das Labor rechnet taggenau mit 365 Tagen. In einem produktiven System muss die konkrete vertragliche Proratisierungsregel für Schaltjahre, Monatspreise und Rundungen explizit definiert sein.</p>
+
+  <h2 style="margin-top:44px">Rechenlabor B: Rechnungssaldo</h2>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="invoiceGross">Bruttosumme Lieferung (€)</label><input id="invoiceGross" type="number" step="0.01" value="1320.78"></div>
+      <div class="field"><label for="discount">Bonus / Gutschrift (€)</label><input id="discount" type="number" step="0.01" value="50"></div>
+      <div class="field"><label for="advancePaid">Gebuchte Abschläge (€)</label><input id="advancePaid" type="number" step="0.01" value="1080"></div>
+      <div class="field"><label for="otherPayments">Weitere Zahlungen (€)</label><input id="otherPayments" type="number" step="0.01" value="0"></div>
+    </div>
+    <button class="btn green" id="calcBalance">Saldo berechnen</button>
+    <div class="result-card" id="balanceResult"></div>
+  </div>
+  <div class="insight"><strong>Fachliche Lesart:</strong> Ein positiver Saldo ist eine Forderung des Lieferanten. Ein negativer Saldo ist ein Guthaben des Kunden. Die Rechnung selbst darf nicht durch spätere Zahlungseingänge mutieren; stattdessen ändert sich der offene Posten.</div>
+</section>
+
+<section id="rechnung">
+  <h2>8. Anatomie einer verständlichen Energierechnung</h2>
+  <p>Eine Rechnung ist mehr als eine Summenliste. Sie muss den Kunden die Verbrauchsermittlung, Preise, Zeiträume und den resultierenden Saldo nachvollziehbar machen.</p>
+  <div class="invoice">
+    <div class="invoice-head">
+      <div><h3>Jahresrechnung Strom</h3><div>MaLo-ID: 12345678901 · Zeitraum 01.01.–31.12.</div></div>
+      <div><strong>Fällig am 20.02.</strong><br><span style="font-size:1.35rem;font-weight:900">190,78 €</span></div>
+    </div>
+    <div class="invoice-body">
+      <div class="invoice-row head"><span>Position</span><span class="right">Menge</span><span class="right">Betrag</span></div>
+      <div class="invoice-row"><span>Arbeitspreis 01.01.–30.06.</span><span class="right">1.700 kWh</span><span class="right">530,40 €</span></div>
+      <div class="invoice-row"><span>Arbeitspreis 01.07.–31.12.</span><span class="right">1.900 kWh</span><span class="right">661,20 €</span></div>
+      <div class="invoice-row"><span>Grundpreis</span><span class="right">365 Tage</span><span class="right">144,00 €</span></div>
+      <div class="invoice-row"><span>Bonus</span><span class="right">–</span><span class="right">−50,00 €</span></div>
+      <div class="invoice-row total"><span>Rechnungssumme</span><span></span><span class="right">1.285,60 €</span></div>
+      <div class="invoice-row"><span>Bereits gezahlte Abschläge</span><span></span><span class="right">−1.094,82 €</span></div>
+      <div class="invoice-row total balance"><span>Offener Rechnungsbetrag</span><span></span><span class="right">190,78 €</span></div>
+    </div>
+  </div>
+
+  <h3>Mindestens vier Perspektiven müssen zusammenpassen</h3>
+  <div class="grid">
+    <div class="mini"><span class="badge">Verbrauch</span><strong>Wie wurde die Menge ermittelt?</strong><p>Anfangs-/Endstand, Intervallwerte, Ersatzwert oder Schätzung und die jeweilige Herkunft.</p></div>
+    <div class="mini"><span class="badge">Preis</span><strong>Welche Preise galten wann?</strong><p>Tarifbezeichnung, Preisbestandteile, Preisänderungen und Berechnungsfaktoren.</p></div>
+    <div class="mini"><span class="badge">Vertrag</span><strong>Was ist die Belieferungsbasis?</strong><p>Vertragsdauer, Kündigungstermin, Grundversorgung oder Sondervertrag.</p></div>
+    <div class="mini"><span class="badge">Finanzen</span><strong>Wie entsteht der Saldo?</strong><p>Rechnungssumme abzüglich Abschläge, Zahlungen, Boni und Gutschriften.</p></div>
+  </div>
+
+  <div class="quiz" data-key="q4" data-answer="c" data-explain="Der offene Posten bildet die noch auszugleichende Forderung oder das Guthaben ab. Die Rechnung bleibt als ausgestelltes Dokument und fachlicher Beleg unverändert bestehen.">
+    <h3>Was sollte sich nach einem späteren Zahlungseingang verändern?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Die abgerechnete Energiemenge.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Die ursprüngliche Rechnungssumme.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Der offene Saldo der zugehörigen Forderung.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="korrektur">
+  <h2>9. Korrekturen: Neu bewerten statt überschreiben</h2>
+  <p>Zwei Wochen nach Rechnungsstellung kommt ein korrigierter Endzählerstand. Die Energiemenge sinkt um 120 kWh.</p>
+  <div class="diagram">Rechnung R-1001, Version 1
+  ├── bewertete Menge: 3.600 kWh
+  ├── Rechnungssumme: 1.285,60 €
+  └── Status: ausgestellt
+
+Korrigierter Messwert trifft ein
+  │
+  ▼
+Differenzbewertung oder Storno + Neuabrechnung
+  │
+  ├── Referenz auf R-1001
+  ├── neue Messwertversion
+  ├── erneut angewendete Preisversionen
+  └── eigener Buchungs- und Belegzeitpunkt</div>
+
+  <p>Ein produktives System benötigt eine definierte Korrekturstrategie:</p>
+  <div class="split">
+    <div class="lane"><h3><span class="number">A</span>Storno und Neuabrechnung</h3><p>Die alte Rechnung wird neutralisiert und eine neue vollständige Rechnung erzeugt. Gut nachvollziehbar, aber buchhalterisch umfangreicher.</p></div>
+    <div class="lane"><h3><span class="number">B</span>Differenzrechnung</h3><p>Nur die monetäre Differenz wird bewertet. Effizient, aber die Herleitung muss auf die ursprüngliche Rechnung und alle Versionen verweisen.</p></div>
+  </div>
+  <div class="danger insight"><strong>Nie still überschreiben:</strong> Wenn du einen Messwert oder Preis in der Datenbank änderst und dieselbe Rechnung danach anders berechnet wird, hast du die Reproduzierbarkeit verloren.</div>
+
+  <h3>Was muss ein Billing-Snapshot enthalten?</h3>
+  <div class="grid">
+    <div class="mini"><strong>Mengenreferenzen</strong><p>ID und Version der verwendeten Energiemengen.</p></div>
+    <div class="mini"><strong>Preisreferenzen</strong><p>Preisplan, Preisversion, Regelversion und Rundungslogik.</p></div>
+    <div class="mini"><strong>Zeitsegmente</strong><p>Alle bewerteten Von-bis-Intervalle und ihre Schnittgründe.</p></div>
+    <div class="mini"><strong>Finanzdaten</strong><p>Positionen, Steuern, Gutschriften, Abschlagsverrechnung und Summen.</p></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>10. Architektur für ein belastbares Billing</h2>
+  <div class="arch">
+    <div class="arch-card"><strong>Billing Eligibility</strong><small>Prüft, ob Vertrag, Zuordnung und Mengen für den Zeitraum vollständig sind.</small></div>
+    <div class="arch-card"><strong>Segmentation</strong><small>Schneidet den Zeitraum an Preis-, Mess-, Vertrags- und Regeländerungen.</small></div>
+    <div class="arch-card"><strong>Rating Engine</strong><small>Bewertet Mengen und Zeitanteile mit versionierten Regeln.</small></div>
+    <div class="arch-card"><strong>Invoice & Receivables</strong><small>Erzeugt Beleg, Forderung, Fälligkeit und Verrechnung.</small></div>
+  </div>
+
+  <h3>Empfohlene fachliche Objekte</h3>
+  <div class="diagram">BillingCase
+  ├── contractId
+  ├── marketLocationId
+  ├── billingPeriod
+  └── eligibilityStatus
+
+BillingSegment
+  ├── validFrom / validTo
+  ├── quantityReference + version
+  ├── priceAssignment + version
+  └── splitReasons[]
+
+RatedItem
+  ├── componentType
+  ├── basisQuantity / basisTime
+  ├── unitPrice
+  ├── netAmount / tax / grossAmount
+  └── calculationTrace
+
+Invoice
+  ├── immutableInvoiceNumber
+  ├── ratedItems[]
+  ├── settlementItems[]
+  ├── dueDate
+  └── correctionReferences[]
+
+Receivable
+  ├── originalAmount
+  ├── allocations[]
+  └── openAmount</div>
+
+  <h3>Drei getrennte Zustandsautomaten</h3>
+  <div class="state-grid">
+    <div class="state active"><strong>Billing Case</strong><p>WAITING_FOR_DATA → READY → RATED → INVOICED → CORRECTION_REQUIRED</p></div>
+    <div class="state"><strong>Invoice</strong><p>DRAFT → APPROVED → ISSUED → CANCELLED / CORRECTED</p></div>
+    <div class="state final"><strong>Receivable</strong><p>OPEN → PARTIALLY_PAID → PAID oder CREDIT_PENDING → SETTLED</p></div>
+  </div>
+  <div class="insight"><strong>DDD-Perspektive:</strong> Die Rechnung sollte nicht das Aggregate sein, das den gesamten Liefervertrag, alle Messwerte und alle Zahlungen besitzt. Sie ist ein unveränderlicher Abrechnungsbeleg, der auf versionierte Bewertungsgrundlagen verweist.</div>
+</section>
+
+<section id="test">
+  <h2>11. Abschlusstest</h2>
+  <p>Beantworte alle Fragen und lasse anschließend dein Ergebnis auswerten.</p>
+  <div id="finalQuestions">
+    <div class="quiz finalq" data-answer="b"><h3>1. Was ist die Aufgabe einer Preisversion?</h3><label class="option"><input type="radio" name="f1" value="a">A: Sie identifiziert das Messgerät.</label><label class="option"><input type="radio" name="f1" value="b">B: Sie hält konkrete Preiswerte für einen definierten Gültigkeitszeitraum.</label><label class="option"><input type="radio" name="f1" value="c">C: Sie ersetzt die Energiemenge.</label></div>
+    <div class="quiz finalq" data-answer="a"><h3>2. Was ist ein fachlicher Grund für ein neues Billing-Segment?</h3><label class="option"><input type="radio" name="f2" value="a">A: Eine Preisänderung innerhalb des Abrechnungszeitraums.</label><label class="option"><input type="radio" name="f2" value="b">B: Der Kunde öffnet das PDF.</label><label class="option"><input type="radio" name="f2" value="c">C: Der Lieferant ändert sein Logo.</label></div>
+    <div class="quiz finalq" data-answer="c"><h3>3. Wie wirken Abschläge?</h3><label class="option"><input type="radio" name="f3" value="a">A: Sie reduzieren die gelieferte Menge.</label><label class="option"><input type="radio" name="f3" value="b">B: Sie ersetzen den Tarif.</label><label class="option"><input type="radio" name="f3" value="c">C: Sie werden mit dem Rechnungssaldo verrechnet.</label></div>
+    <div class="quiz finalq" data-answer="b"><h3>4. Warum braucht eine Rechnung einen Snapshot der Eingaben?</h3><label class="option"><input type="radio" name="f4" value="a">A: Damit spätere Datenänderungen die alte Rechnung automatisch verändern.</label><label class="option"><input type="radio" name="f4" value="b">B: Damit die damalige Berechnung reproduziert und erklärt werden kann.</label><label class="option"><input type="radio" name="f4" value="c">C: Nur damit das PDF größer wird.</label></div>
+    <div class="quiz finalq" data-answer="a"><h3>5. Was sollte nach Zahlung einer Rechnung mutieren?</h3><label class="option"><input type="radio" name="f5" value="a">A: Der offene Betrag der Forderung.</label><label class="option"><input type="radio" name="f5" value="b">B: Der ursprüngliche Arbeitspreis.</label><label class="option"><input type="radio" name="f5" value="c">C: Der abgerechnete Zeitraum.</label></div>
+    <div class="quiz finalq" data-answer="c"><h3>6. Welche Korrektur ist fachlich problematisch?</h3><label class="option"><input type="radio" name="f6" value="a">A: Storno und Neuabrechnung mit Referenz.</label><label class="option"><input type="radio" name="f6" value="b">B: Differenzrechnung mit Berechnungsnachweis.</label><label class="option"><input type="radio" name="f6" value="c">C: Überschreiben der Quelldaten, sodass die alte Rechnung unbemerkt ein anderes Ergebnis liefert.</label></div>
+    <div class="quiz finalq" data-answer="b"><h3>7. Was ist die Aufgabe der Rating Engine?</h3><label class="option"><input type="radio" name="f7" value="a">A: Sie liest den Zähler physisch aus.</label><label class="option"><input type="radio" name="f7" value="b">B: Sie bewertet Mengen und Zeitanteile mit gültigen Preisregeln.</label><label class="option"><input type="radio" name="f7" value="c">C: Sie wechselt den Bilanzkreis.</label></div>
+    <div class="quiz finalq" data-answer="a"><h3>8. Welche Aussage zum Grundpreis ist richtig?</h3><label class="option"><input type="radio" name="f8" value="a">A: Seine unterjährige Berechnung benötigt eine definierte Proratisierungsregel.</label><label class="option"><input type="radio" name="f8" value="b">B: Er wird immer mit kWh multipliziert.</label><label class="option"><input type="radio" name="f8" value="c">C: Er gehört zum Messwert.</label></div>
+  </div>
+  <button class="btn blue" id="evaluateFinal">Test auswerten</button>
+  <div class="final-score" id="finalScore"></div>
+</section>
+
+<section id="transfer">
+  <h2>12. Transferaufgabe für dein System</h2>
+  <p>Modelliere einen Abrechnungsfall mit folgenden Änderungen:</p>
+  <div class="timeline">
+    <div class="period"><span class="date">10. Februar</span><span>Lieferbeginn des Kunden</span><span class="amount">Vertragsgrenze</span></div>
+    <div class="period"><span class="date">15. April</span><span>Zählerwechsel mit bestätigten Ständen</span><span class="amount">Messgrenze</span></div>
+    <div class="period"><span class="date">1. Juli</span><span>Arbeitspreis ändert sich</span><span class="amount">Preisgrenze</span></div>
+    <div class="period"><span class="date">31. Dezember</span><span>Ende des Turnuszeitraums</span><span class="amount">Abrechnungsgrenze</span></div>
+  </div>
+  <p>Beantworte für dein Domänenmodell:</p>
+  <ol>
+    <li>Welche Billing-Segmente entstehen?</li>
+    <li>Welche Mengenquelle und Version verwendet jedes Segment?</li>
+    <li>Welche Preisversion gilt je Segment?</li>
+    <li>Wie wird der Grundpreis abgegrenzt?</li>
+    <li>Welche Daten werden in den Billing-Snapshot kopiert oder referenziert?</li>
+    <li>Welche Events entstehen bei <span class="code">InvoiceIssued</span> und bei einer späteren Messwertkorrektur?</li>
+  </ol>
+</section>
+
+<section class="sources">
+  <h2>13. Fachliche Grundlagen und Aktualität</h2>
+  <p>Die Lektion vermittelt ein Software- und Domänenmodell. Konkrete Preise, Umlagen, Steuerregeln, Formatvorgaben und Pflichtangaben müssen in einer produktiven Lösung stets nach Sparte, Kundengruppe und Gültigkeitszeitraum versioniert werden.</p>
+  <ul>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/RechnungenSperrungen/Rechnungen-table.html" target="_blank" rel="noopener">Bundesnetzagentur: Rechnungen – Pflichtangaben, Verbrauchsermittlung, Abschläge, Guthaben und Fristen</a></li>
+    <li><a href="https://www.gesetze-im-internet.de/enwg_2005/__40.html" target="_blank" rel="noopener">§ 40 EnWG – Inhalt von Energierechnungen</a></li>
+    <li><a href="https://www.gesetze-im-internet.de/enwg_2005/__40a.html" target="_blank" rel="noopener">§ 40a EnWG – Verbrauchsermittlung für Energierechnungen</a></li>
+    <li><a href="https://www.gesetze-im-internet.de/enwg_2005/__40b.html" target="_blank" rel="noopener">§ 40b EnWG – Rechnungs- und Informationszeiträume</a></li>
+    <li><a href="https://www.gesetze-im-internet.de/enwg_2005/__40c.html" target="_blank" rel="noopener">§ 40c EnWG – Fälligkeit, Abrechnungsfristen und Guthaben</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/PreiseAbschlaege/Tarife-table.html" target="_blank" rel="noopener">Bundesnetzagentur: Preisbestandteile und Tarife</a></li>
+  </ul>
+</section>
+
+<footer>Fortsetzung: Lektion 10 – Netznutzungsabrechnung, INVOIC und REMADV aus Lieferantensicht</footer>
+</main>
+
+<script>
+  const money = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
+  const number = new Intl.NumberFormat('de-DE',{maximumFractionDigits:3});
+
+  document.querySelectorAll('.quiz:not(.finalq) .check').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const quiz=btn.closest('.quiz');
+      const chosen=quiz.querySelector('input:checked');
+      const fb=quiz.querySelector('.feedback');
+      if(!chosen){fb.className='feedback bad';fb.textContent='Bitte wähle zuerst eine Antwort.';return;}
+      const ok=chosen.value===quiz.dataset.answer;
+      fb.className='feedback '+(ok?'good':'bad');
+      fb.textContent=(ok?'Richtig. ':'Noch nicht. ')+quiz.dataset.explain;
+    });
+  });
+
+  const steps=[
+    {title:'Abrechnungsbereitschaft prüfen',actor:'Billing Eligibility',risk:'Fehlende Daten',text:'Prüfe Lieferzeitraum, Vertragszuordnung, abrechenbare Mengen, Tarifzuordnung und Sperrgründe. Ein vorhandener Endstand allein genügt nicht.',result:'Ergebnis: Billing Case ist READY oder bleibt mit konkretem Grund blockiert.'},
+    {title:'Zeitraum segmentieren',actor:'Segmentation',risk:'Falsche Zeitgrenzen',text:'Schneide an Vertragsbeginn/-ende, Preisänderungen, Messkonfigurationswechseln, relevanten Regeländerungen und Abrechnungsgrenzen.',result:'Ergebnis: disjunkte, lückenlose Billing-Segmente.'},
+    {title:'Mengen je Segment bestimmen',actor:'Metering / Billing',risk:'Doppelte Menge',text:'Ordne jedem Segment eine freigegebene Menge oder eine dokumentierte Abgrenzungsmethode zu. Prüfe, dass die Summe der Teilmengen zur Gesamtmenge passt.',result:'Ergebnis: versionierte Bewertungsgrundlagen je Segment.'},
+    {title:'Preisregeln anwenden',actor:'Rating Engine',risk:'Falsche Version',text:'Bewerte Arbeit, Zeit, Leistung oder Bedingungen mit den im Segment gültigen Preisversionen. Erzeuge eine vollständige Berechnungsspur.',result:'Ergebnis: Rated Items mit Netto-, Steuer- und Bruttobeträgen.'},
+    {title:'Rechnung und Settlement bilden',actor:'Invoice Service',risk:'Rundungsdifferenzen',text:'Fasse Positionen regelkonform zusammen, berücksichtige Boni und verrechne gebuchte Abschläge beziehungsweise Gutschriften.',result:'Ergebnis: fachliche Rechnung und resultierender Kundensaldo.'},
+    {title:'Beleg freigeben und Forderung erzeugen',actor:'Finance / Output',risk:'Nicht reproduzierbarer Beleg',text:'Vergib eine unveränderliche Rechnungsnummer, speichere den Billing-Snapshot, erzeuge Dokument und offenen Posten mit Fälligkeit.',result:'Ergebnis: ausgestellte Rechnung plus Forderung oder Guthaben.'}
+  ];
+  let stepIndex=0;
+  const indicator=document.getElementById('stepIndicator'), card=document.getElementById('stepCard');
+  function renderStep(){
+    indicator.innerHTML=steps.map((_,i)=>`<span class="step-dot ${i<=stepIndex?'done':''}"></span>`).join('');
+    const s=steps[stepIndex];
+    card.innerHTML=`<div class="step-meta"><span class="pill">Schritt ${stepIndex+1}/${steps.length}</span><span class="pill actor">${s.actor}</span><span class="pill risk">Risiko: ${s.risk}</span></div><h3>${s.title}</h3><p>${s.text}</p><div class="insight success"><strong>${s.result}</strong></div>`;
+    document.getElementById('prevStep').disabled=stepIndex===0;
+    document.getElementById('nextStep').textContent=stepIndex===steps.length-1?'Von vorn':'Nächster Schritt';
+  }
+  document.getElementById('prevStep').addEventListener('click',()=>{if(stepIndex>0)stepIndex--;renderStep()});
+  document.getElementById('nextStep').addEventListener('click',()=>{stepIndex=stepIndex===steps.length-1?0:stepIndex+1;renderStep()});
+  renderStep();
+
+  const correctOrder=[
+    'Abrechnungsbereitschaft prüfen',
+    'Abrechnungszeitraum in gültige Segmente schneiden',
+    'Mengen und Preisversionen je Segment zuordnen',
+    'Bewertungspositionen berechnen',
+    'Abschläge und Gutschriften verrechnen',
+    'Rechnung ausstellen und offenen Posten erzeugen'
+  ];
+  let chosenOrder=[];
+  function shuffled(arr){
+    const a=[...arr];
+    for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+    if(a.every((v,i)=>v===arr[i]) && a.length>1){[a[0],a[1]]=[a[1],a[0]]}
+    return a;
+  }
+  function setupOrder(){
+    chosenOrder=[];
+    const mixed=shuffled(correctOrder);
+    const box=document.getElementById('orderOptions');
+    box.innerHTML='';
+    mixed.forEach(text=>{
+      const b=document.createElement('button');b.className='order-option';b.textContent=text;
+      b.addEventListener('click',()=>{if(!chosenOrder.includes(text)){chosenOrder.push(text);b.disabled=true;renderChosen()}});
+      box.appendChild(b);
+    });
+    document.getElementById('shuffleInfo').textContent='Zufällige Startreihenfolge erzeugt: '+new Date().toLocaleTimeString('de-DE');
+    const fb=document.getElementById('orderFeedback');fb.className='feedback';fb.textContent='';renderChosen();
+  }
+  function renderChosen(){
+    const el=document.getElementById('orderSelected');
+    if(!chosenOrder.length){el.textContent='Noch kein Schritt gewählt.';return;}
+    el.innerHTML=chosenOrder.map((x,i)=>`<span class="order-token" data-i="${i}">${i+1}. ${x}</span>`).join(' ');
+    el.querySelectorAll('.order-token').forEach(t=>t.addEventListener('click',()=>{
+      const removed=chosenOrder.splice(Number(t.dataset.i),1)[0];
+      [...document.querySelectorAll('.order-option')].find(b=>b.textContent===removed).disabled=false;renderChosen();
+    }));
+  }
+  document.getElementById('checkOrder').addEventListener('click',()=>{
+    const fb=document.getElementById('orderFeedback');
+    if(chosenOrder.length!==correctOrder.length){fb.className='feedback bad';fb.textContent='Wähle zuerst alle sechs Schritte aus.';return;}
+    const ok=chosenOrder.every((x,i)=>x===correctOrder[i]);
+    fb.className='feedback '+(ok?'good':'bad');
+    fb.textContent=ok?'Richtig. So entsteht aus freigegebenen Daten ein nachvollziehbarer Beleg und anschließend ein offener Posten.':'Noch nicht korrekt. Denke an die Trennung: erst Bereitschaft und Segmentierung, dann Bewertung, anschließend Settlement und Beleg.';
+  });
+  document.getElementById('resetOrder').addEventListener('click',setupOrder);
+  setupOrder();
+
+  function n(id){return Number(document.getElementById(id).value)||0}
+  function calcTariff(){
+    const q1=n('qty1'),p1=n('price1')/100,q2=n('qty2'),p2=n('price2')/100,base=n('baseAnnual'),days=n('supplyDays'),vat=n('vatRate')/100,mode=document.getElementById('priceMode').value;
+    const workInput=q1*p1+q2*p2,baseInput=base*days/365,totalInput=workInput+baseInput;
+    let net,tax,gross;
+    if(mode==='gross'){gross=totalInput;net=gross/(1+vat);tax=gross-net}else{net=totalInput;tax=net*vat;gross=net+tax}
+    document.getElementById('tariffResult').innerHTML=`
+      <div class="result-line"><span>Periode 1</span><strong>${number.format(q1)} kWh × ${number.format(p1*100)} ct = ${money.format(q1*p1)}</strong></div>
+      <div class="result-line"><span>Periode 2</span><strong>${number.format(q2)} kWh × ${number.format(p2*100)} ct = ${money.format(q2*p2)}</strong></div>
+      <div class="result-line"><span>Grundpreisanteil</span><strong>${days}/365 × ${money.format(base)} = ${money.format(baseInput)}</strong></div>
+      <div class="result-line"><span>Nettobetrag</span><strong>${money.format(net)}</strong></div>
+      <div class="result-line"><span>Umsatzsteuer (${number.format(vat*100)} %)</span><strong>${money.format(tax)}</strong></div>
+      <div class="result-line"><span>Bruttosumme</span><strong class="ok">${money.format(gross)}</strong></div>`;
+  }
+  document.getElementById('calcTariff').addEventListener('click',calcTariff);calcTariff();
+
+  function calcBalance(){
+    const gross=n('invoiceGross'),discount=n('discount'),advance=n('advancePaid'),other=n('otherPayments');
+    const afterDiscount=gross-discount,paid=advance+other,balance=afterDiscount-paid;
+    const label=balance>0.005?'Nachzahlung / offene Forderung':balance<-.005?'Guthaben des Kunden':'Ausgeglichen';
+    const cls=balance>0.005?'warntext':balance<-.005?'ok':'ok';
+    document.getElementById('balanceResult').innerHTML=`
+      <div class="result-line"><span>Lieferung brutto</span><strong>${money.format(gross)}</strong></div>
+      <div class="result-line"><span>abzüglich Bonus / Gutschrift</span><strong>−${money.format(discount)}</strong></div>
+      <div class="result-line"><span>Rechnungssumme nach Gutschrift</span><strong>${money.format(afterDiscount)}</strong></div>
+      <div class="result-line"><span>gebuchte Zahlungen</span><strong>−${money.format(paid)}</strong></div>
+      <div class="result-line"><span>${label}</span><strong class="${cls}">${money.format(Math.abs(balance))}</strong></div>`;
+  }
+  document.getElementById('calcBalance').addEventListener('click',calcBalance);calcBalance();
+
+  document.getElementById('evaluateFinal').addEventListener('click',()=>{
+    const qs=[...document.querySelectorAll('.finalq')];let score=0,answered=0;
+    qs.forEach(q=>{const c=q.querySelector('input:checked');if(c){answered++;if(c.value===q.dataset.answer)score++;}});
+    const el=document.getElementById('finalScore');el.style.display='block';
+    if(answered<qs.length){el.innerHTML=`Du hast ${answered} von ${qs.length} Fragen beantwortet. Ergebnis bisher: ${score} richtig.`;return;}
+    const pct=Math.round(score/qs.length*100);
+    const msg=pct>=88?'Sehr sicher: Du trennst Bewertung, Rechnung und Forderung sauber.':pct>=63?'Gute Grundlage. Wiederhole besonders Zeitsegmentierung und Korrekturen.':'Gehe die Abschnitte zu Preisversionen, Settlement und Billing-Snapshot noch einmal durch.';
+    el.innerHTML=`<strong>${score} von ${qs.length} richtig (${pct} %).</strong><br>${msg}`;
+  });
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>

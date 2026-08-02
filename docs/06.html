@@ -1,1 +1,448 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'06',minutes:14,title:'Lieferantenwechsel ohne Umzug',lede:'Die Marktlokation bleibt; die zeitliche Lieferantenzuordnung wechselt.',objectives:['Lieferantenwechsel und Ein-/Auszug unterscheiden','überlappungsfreie Zuordnungsintervalle prüfen','24-Stunden-Prozess nicht mit 24-Stunden-Belieferungsstart verwechseln'],chapters:[{title:'Stabile Identität, wechselnde Verantwortung',html:'<p>Beim reinen Lieferantenwechsel bleiben Nutzer, Adresse und MaLo typischerweise bestehen. Alt- und Neulieferant besitzen angrenzende Zuordnungsintervalle.</p><pre class="model">Alt-LF: [2026-01-01, 2026-08-31]\nNeu-LF: [2026-09-01, …)</pre>'},{title:'Das 24h-Missverständnis',html:'<p>Der seit 06.06.2025 geltende beschleunigte werktägliche Lieferantenwechsel beschreibt die technische Abwicklung. Er bedeutet nicht, dass jeder Vertrag beliebig binnen 24 Stunden startet oder Kündigungsregeln verschwinden.</p><p class="callout">Speichere das angefragte, bestätigte und tatsächlich verwendete Datum getrennt.</p>'}],quiz:[{question:'Was bleibt beim Lieferantenwechsel ohne Umzug stabil?',options:['Die Lieferantenzuordnung','Die Marktlokation','Der Bilanzkreis in jedem Fall'],answer:1},{question:'Was bedeutet LFW24 fachlich nicht?',options:['Beschleunigte technische Abwicklung','Automatische Aufhebung vertraglicher Fristen','Werktäglicher Prozess'],answer:1}],task:{title:'Formuliere eine Invariante',prompt:'Welche Regel schützt vor Doppelbelieferung im Modell?',answer:'<p>Für dieselbe MaLo und denselben Zuordnungstyp dürfen sich bestätigte Lieferantenintervalle nicht überlappen. Gleichzeitig muss dein Modell Lücken sichtbar machen, statt sie stillschweigend zu schließen.</p>'},sources:[['Bundesnetzagentur: BK6-22-024','https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2022/BK6-22-024/BK6-22-024_Verfahren.html'],['Bundesnetzagentur: Mitteilung Nr. 4, Umsetzung 06.06.2025','https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2022/BK6-22-024/Mitteilung_Nr_04/Mitteilung_Nr_04.html']],prev:'05',next:'07'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zum Lieferantenwechsel im Strommarkt: Kündigung, Lieferbeginn, Lieferende, 24-Stunden-Wechsel, Fristen, Fehlerfälle und Softwarearchitektur." />
+  <title>Lektion 6 – Lieferantenwechsel ohne Umzug</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#2457d6;--accent2:#7a3ee6;--accent3:#0f766e;--soft:#eaf1ff;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 87% 12%,rgba(255,255,255,.18),transparent 29%),linear-gradient(135deg,#101b37 0%,#2353c7 52%,#7439d8 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1030px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.45rem);line-height:1.02;max-width:930px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:870px;color:rgba(255,255,255,.89);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(244,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,43px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#1d4ed8;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}.success{border-left-color:var(--accent3);background:#e8f7f4;color:#115e59}.danger{border-left-color:var(--bad);background:var(--badsoft);color:#7a271a}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:#0e172a;color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.92rem}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#9db7f6;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.ghost{background:#eef2ff;color:#1e40af;border:1px solid #cfd8ff}.btn:hover{filter:brightness(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .role-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:22px 0}.role{border:1px solid var(--line);border-radius:17px;padding:20px;background:linear-gradient(180deg,#fff,#f9fbff)}.role .icon{font-size:1.45rem}.role h3{margin:8px 0}.role ul{padding-left:20px}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}.lane{border:1px solid var(--line);border-radius:18px;padding:20px;background:#fbfcff}.lane h3{margin:0 0 10px}.lane .number{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900;margin-right:8px}
+    .stepper{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.step-indicator{display:flex;gap:8px;align-items:center;margin-bottom:18px}.step-dot{height:8px;flex:1;border-radius:999px;background:#d9e2ef}.step-dot.done{background:linear-gradient(90deg,var(--accent),var(--accent2))}.step-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:270px}.step-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:.8rem;font-weight:850}.pill.actor{background:#e8f7f4;color:#115e59}.pill.risk{background:#fff7e8;color:#8a4b08}.step-card h3{margin:8px 0}.step-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .lab{border:1px solid #cfd8ff;background:linear-gradient(135deg,#f8faff,#f4f0ff);border-radius:18px;padding:22px;margin-top:22px}.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:9px}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px}.result-line:last-child{border-bottom:0;padding-bottom:0}.result-text{color:#dbeafe}.ok{color:#86efac}.warntext{color:#fde68a}.badtext{color:#fca5a5}
+    .timeline{position:relative;margin:24px 0 8px;padding-left:34px}.timeline:before{content:"";position:absolute;left:10px;top:8px;bottom:8px;width:3px;background:linear-gradient(var(--accent),var(--accent2));border-radius:999px}.time-item{position:relative;margin:0 0 20px;padding:17px 18px;border:1px solid var(--line);border-radius:15px;background:#fff}.time-item:before{content:"";position:absolute;left:-31px;top:21px;width:13px;height:13px;border-radius:50%;background:var(--accent);border:4px solid var(--bg)}.time-item h3{margin:0 0 5px;font-size:1.05rem}.time-item p{margin:0}
+    .state-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}.state{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fbfcfe}.state h3{margin:0 0 12px}.state-flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center}.state-node{padding:7px 9px;border-radius:9px;background:#eef2ff;color:#3730a3;font-size:.83rem;font-weight:800}.arrow{color:var(--muted);font-weight:900}
+    .event-stream{display:grid;gap:10px;margin-top:18px}.event{display:grid;grid-template-columns:185px 1fr;gap:14px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fff}.event code{font-weight:850;color:#1e40af}.event small{color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:18px}th,td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}th{background:#f8fafc}.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .order-box{border:1px solid #cfd8ff;border-radius:18px;padding:20px;background:#f8faff;margin-top:22px}.order-options{display:grid;gap:10px;margin-top:14px}.order-option{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;font-weight:700}.order-option:hover{border-color:#9db7f6}.order-selected{margin-top:16px;padding:14px;border-radius:12px;background:#0f172a;color:#e5edff;min-height:55px}.order-token{display:inline-block;margin:3px;padding:5px 8px;border-radius:8px;background:#334155;font-size:.84rem}
+    .progress{height:12px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:14px 0}.progress span{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.3s}.score{font-size:1.14rem;font-weight:850}
+    .source-list a{color:#1d4ed8;word-break:break-word}.source-note{color:var(--muted);font-size:.92rem}.footer{color:var(--muted);font-size:.9rem}.checklist li{margin-bottom:8px}
+    @media(max-width:800px){.role-grid,.split,.state-grid{grid-template-columns:1fr}.event{grid-template-columns:1fr}.hero{padding-top:52px}.result-line{display:block}.result-line span{display:block;margin-top:2px}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 6</span>
+    <h1>Lieferantenwechsel ohne Umzug</h1>
+    <p class="subtitle">Ein Kunde bleibt in derselben Wohnung. Physisch ändert sich nichts – vertraglich und marktlich müssen aber zwei gekoppelte Prozesse sauber ineinandergreifen.</p>
+    <div class="hero-note">🎯 Leitfrage: Wie wird aus „Ich möchte wechseln“ eine lückenlose, widerspruchsfreie Lieferantenzuordnung?</div>
+  </div>
+</header>
+<nav><div class="wrap nav-inner">
+  <a href="#ziele">Lernziele</a><a href="#fall">Ausgangsfall</a><a href="#trennung">Zwei Prozesse</a><a href="#ablauf">Ablauf</a><a href="#24h">24 Stunden</a><a href="#labor">Simulator</a><a href="#fehler">Fehlerfälle</a><a href="#architektur">Architektur</a><a href="#test">Abschlusstest</a>
+</div></nav>
+<main class="wrap">
+<section id="ziele">
+  <h2>1. Lernziele</h2>
+  <p class="lead">Nach dieser Lektion kannst du einen Lieferantenwechsel als Zusammenspiel von Vertrag, Kündigung und Marktzuordnung erklären – und diese Ebenen in Software getrennt modellieren.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Fachlich</span><strong>LFN, LFA und NB unterscheiden</strong><p>Du weißt, wer welchen Prozess startet und wer welche Wahrheit besitzt.</p></div>
+    <div class="mini"><span class="badge">Prozess</span><strong>Kündigung und Lieferbeginn koppeln</strong><p>Du erkennst, warum ein erfolgreicher Wechsel mehr ist als eine einzelne Anmeldung.</p></div>
+    <div class="mini"><span class="badge">Regulierung</span><strong>24-Stunden-Wechsel richtig einordnen</strong><p>Technische Prozessgeschwindigkeit ist nicht dasselbe wie Vertragsfreiheit.</p></div>
+    <div class="mini"><span class="badge">Architektur</span><strong>Zustände und Zeiträume modellieren</strong><p>Du vermeidest „active=true“ und denkst stattdessen in wirksamen Zeitintervallen.</p></div>
+  </div>
+</section>
+
+<section id="fall">
+  <h2>2. Ausgangsfall: Der Kunde bleibt</h2>
+  <p>Herr Müller wohnt weiterhin in derselben Wohnung. Die MaLo, der Netzanschluss, die MeLo und der Zähler bleiben unverändert. Er möchte lediglich von <strong>Altstrom GmbH</strong> zu <strong>Nordstrom Energie</strong> wechseln.</p>
+  <div class="diagram">Vor dem Wechsel                         Nach dem Wechsel
+
+Kunde: Herr Müller                      Kunde: Herr Müller
+Adresse: unverändert                    Adresse: unverändert
+MaLo: unverändert                       MaLo: unverändert
+Zähler: unverändert                     Zähler: unverändert
+Lieferant: Altstrom GmbH                Lieferant: Nordstrom Energie
+Bilanzkreiszuordnung: alt               Bilanzkreiszuordnung: neu/angepasst</div>
+  <div class="insight">Der Lieferantenwechsel ist primär ein <strong>Wechsel zeitabhängiger Zuordnungen</strong>. Das physische Objekt bleibt bestehen; Vertrags- und Marktbeziehungen erhalten neue Gültigkeitszeiträume.</div>
+
+  <div class="quiz" data-key="q1" data-answer="b" data-explain="Bei einem reinen Lieferantenwechsel bleibt die MaLo bestehen. Geändert werden vor allem Vertrag, Lieferantenzuordnung und gegebenenfalls Bilanzkreiszuordnung.">
+    <h3>Was ändert sich bei einem Lieferantenwechsel ohne Umzug typischerweise?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Der Netzanschluss wird an den neuen Lieferanten übertragen.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Die zeitabhängige Lieferantenzuordnung der MaLo.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Die MaLo-ID wird grundsätzlich neu vergeben.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="rollen">
+  <h2>3. Drei Rollen, drei Verantwortungen</h2>
+  <div class="role-grid">
+    <div class="role"><div class="icon">🆕</div><h3>LFN</h3><p><strong>Lieferant neu</strong></p><ul><li>schließt den neuen Vertrag</li><li>besitzt die Kundenvollmacht</li><li>stößt meist die Kündigung beim LFA an</li><li>meldet den Lieferbeginn beim NB an</li></ul></div>
+    <div class="role"><div class="icon">📤</div><h3>LFA</h3><p><strong>Lieferant alt</strong></p><ul><li>kennt den bestehenden Vertrag</li><li>prüft Kündigungstermin und Fristen</li><li>bestätigt oder lehnt die Kündigung ab</li><li>stößt nach bestätigter Kündigung sein Lieferende beim NB an</li></ul></div>
+    <div class="role"><div class="icon">🔀</div><h3>NB</h3><p><strong>Netzbetreiber</strong></p><ul><li>führt die marktliche Zuordnung der MaLo</li><li>prüft den Lieferbeginn</li><li>beendet gegebenenfalls die bisherige Zuordnung</li><li>verhindert bzw. schließt Zuordnungslücken</li></ul></div>
+  </div>
+  <div class="warning insight">Der Netzbetreiber entscheidet nicht über die zivilrechtliche Kündigungsfrist. Der Altlieferant entscheidet nicht allein über die marktliche Zuordnung. Genau deshalb existieren getrennte Prozesse.</div>
+</section>
+
+<section id="trennung">
+  <h2>4. Der Kern: zwei gekoppelte Prozesse</h2>
+  <p>Ein sauberer Lieferantenwechsel besteht nicht aus einer einzigen „Switch“-Operation. Es laufen zwei fachlich verschiedene Vorgänge.</p>
+  <div class="split">
+    <div class="lane"><h3><span class="number">1</span>Kündigung</h3><p><strong>LFN → LFA</strong></p><p>Ziel: Das bestehende Vertragsverhältnis endet zu einem bestimmten oder zum nächstmöglichen Zeitpunkt.</p><ul><li>betrifft die Vertragswelt</li><li>LFA prüft Vertragslage</li><li>Antwort: bestätigt, angepasst oder abgelehnt</li></ul></div>
+    <div class="lane"><h3><span class="number">2</span>Lieferbeginn</h3><p><strong>LFN → NB</strong></p><p>Ziel: Der neue Lieferant wird der MaLo ab dem gewünschten Zeitpunkt marktlich zugeordnet.</p><ul><li>betrifft die Zuordnungswelt</li><li>NB prüft MaLo, Termin und bestehende Zuordnung</li><li>Ergebnis: neue Zuordnung oder Ablehnung</li></ul></div>
+  </div>
+  <div class="success insight">Die GPKE empfiehlt, die Kündigung generell vor dem Lieferbeginn anzustoßen. So kennt der neue Lieferant den bestätigten Vertragsendtermin und reduziert spätere Klärungsfälle.</div>
+
+  <div class="diagram">Kunde          LFN                     LFA                     NB
+  │              │                       │                      │
+  │ Wechselauftrag                       │                      │
+  ├─────────────►│                       │                      │
+  │              │ 1. Kündigung          │                      │
+  │              ├──────────────────────►│                      │
+  │              │ 2. Bestätigung /      │                      │
+  │              │    Ablehnung          │                      │
+  │              ◄───────────────────────┤                      │
+  │              │                       │ 3. Lieferende        │
+  │              │                       ├─────────────────────►│
+  │              │ 4. Lieferbeginn                              │
+  │              ├─────────────────────────────────────────────►│
+  │              │ 5. Bestätigung / Ablehnung                   │
+  │              ◄──────────────────────────────────────────────┤
+  │              │                                              │
+  │              └──── bei Erfolg: lückenloser Wechsel ─────────┘</div>
+
+  <div class="quiz" data-key="q2" data-answer="c" data-explain="Die Vertragskündigung und die marktliche Lieferantenzuordnung sind getrennte Wahrheiten. Ein Vertrag kann beendet sein, während die Marktzuordnung noch nicht umgestellt wurde – oder umgekehrt ein technischer Vorgang geplant sein, obwohl die Vertragslage noch ungeklärt ist.">
+    <h3>Warum genügt eine bestätigte Kündigung allein noch nicht?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Weil der Kunde anschließend eine neue MaLo beantragen muss.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Weil Kündigungen im Strommarkt keine Wirkung haben.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Weil zusätzlich die marktliche Zuordnung des neuen Lieferanten beim NB hergestellt werden muss.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="ablauf">
+  <h2>5. Prozess-Stepper</h2>
+  <p>Gehe den idealtypischen Wechsel durch. Die konkreten Nachrichtenformate folgen in einer späteren Lektion; hier geht es um Verantwortung und Zustandsänderung.</p>
+  <div class="stepper">
+    <div class="step-indicator" id="stepIndicator"></div>
+    <div class="step-card" id="stepCard"></div>
+    <div class="step-actions"><button class="btn secondary" id="prevStep">Zurück</button><button class="btn" id="nextStep">Nächster Schritt</button></div>
+  </div>
+
+  <div class="order-box">
+    <h3 style="margin-top:0">Reihenfolge selbst bauen</h3>
+    <p>Klicke die Schritte in der fachlich sinnvollsten Reihenfolge an.</p>
+    <div class="order-options" id="orderOptions"></div>
+    <div class="order-selected" id="orderSelected">Noch kein Schritt gewählt.</div>
+    <button class="btn" id="checkOrder">Reihenfolge prüfen</button> <button class="btn ghost" id="resetOrder">Zurücksetzen</button>
+    <div class="feedback" id="orderFeedback"></div>
+  </div>
+</section>
+
+<section id="24h">
+  <h2>6. Was „Lieferantenwechsel in 24 Stunden“ wirklich bedeutet</h2>
+  <p>Seit dem 6. Juni 2025 muss der <strong>technische Strom-Lieferantenwechsel</strong> werktäglich binnen 24 Stunden möglich sein. Das betrifft die standardisierte Marktkommunikation und Zuordnung – nicht die Vertragslaufzeit.</p>
+  <table>
+    <thead><tr><th>Aussage</th><th>Richtiges Verständnis</th></tr></thead>
+    <tbody>
+      <tr><td>„Ich kann morgen immer wechseln.“</td><td>Nur wenn die vertraglichen Voraussetzungen erfüllt sind und der Prozess korrekt angestoßen wird.</td></tr>
+      <tr><td>„Die Mindestlaufzeit ist abgeschafft.“</td><td>Nein. Vertragslaufzeiten und Kündigungsfristen bleiben bestehen.</td></tr>
+      <tr><td>„24 Stunden heißt Echtzeit.“</td><td>Nein. Es ist ein beschleunigter werktäglicher Prozess, kein synchroner API-Call.</td></tr>
+      <tr><td>„Der Zähler wird ausgetauscht.“</td><td>Normalerweise nicht. Die Marktzuordnung ändert sich.</td></tr>
+    </tbody>
+  </table>
+  <div class="insight">Im Kündigungsprozess muss der LFA nach GPKE unverzüglich antworten; spätester Übermittlungstag ist der erste Werktag nach der Kündigung. Bei einem abgelehnten fixen Termin teilt er den nächstmöglichen Termin und die Kündigungsfrist mit.</div>
+
+  <div class="quiz" data-key="q3" data-answer="b" data-explain="Der 24-Stunden-Wechsel beschleunigt den technischen Marktprozess. Er hebt weder Mindestvertragslaufzeiten noch Kündigungsfristen auf.">
+    <h3>Herr Müller hat noch neun Monate Mindestlaufzeit. Kann er aufgrund des 24-Stunden-Wechsels morgen zu Nordstrom wechseln?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Ja, der 24-Stunden-Wechsel beendet jeden Vertrag automatisch.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Nein, außer es besteht ein wirksames Recht zur früheren Beendigung; der technische Prozess ersetzt die Vertragsprüfung nicht.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Ja, wenn der Netzbetreiber zustimmt.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="labor">
+  <h2>7. Wechsel-Simulator</h2>
+  <p>Der Simulator zeigt, warum du Vertragsende und Zuordnungsbeginn als zwei getrennte, aber abzustimmende Zeitpunkte modellieren solltest.</p>
+  <div class="lab">
+    <div class="lab-grid">
+      <div class="field"><label for="endDate">Bestätigtes Vertragsende LFA</label><input id="endDate" type="date" value="2026-10-01"></div>
+      <div class="field"><label for="startDate">Gewünschter Zuordnungsbeginn LFN</label><input id="startDate" type="date" value="2026-10-01"></div>
+      <div class="field"><label for="cancelStatus">Status Kündigung</label><select id="cancelStatus"><option value="confirmed">Bestätigt</option><option value="pending">Noch offen</option><option value="rejected">Abgelehnt</option><option value="already">Kunde hatte bereits gekündigt</option></select></div>
+      <div class="field"><label for="maloStatus">Identifikation</label><select id="maloStatus"><option value="known">MaLo-ID bekannt</option><option value="weak">Nur Adresse/Zählernummer</option><option value="wrong">Falsche MaLo vermutet</option></select></div>
+    </div>
+    <button class="btn" id="simulate">Wechsel bewerten</button>
+    <div class="result-card" id="simulationResult" aria-live="polite"></div>
+  </div>
+  <div class="warning insight">Das Labor ist ein Lernmodell, kein produktiver Fristenrechner. Reale Prozesse benötigen die jeweils gültigen GPKE-, AHB- und Entscheidungsbaum-Vorgaben.</div>
+</section>
+
+<section id="fehler">
+  <h2>8. Typische Fehler- und Klärungsfälle</h2>
+  <div class="timeline">
+    <div class="time-item"><h3>Fixer Kündigungstermin wird nicht bestätigt</h3><p>Der LFA nennt den nächstmöglichen Termin und die Kündigungsfrist. Das ist nicht bloß ein „false“, sondern neue fachliche Information, die den geplanten Lieferbeginn verändern kann.</p></div>
+    <div class="time-item"><h3>Kunde hat bereits selbst gekündigt</h3><p>Der LFA antwortet anhand des bereits wirksamen Vertragsendes. Eine spätere Kündigung kann ein bereits beendetes Vertragsverhältnis nicht einfach verlängern.</p></div>
+    <div class="time-item"><h3>Falscher Altlieferant</h3><p>Der angesprochene LFA ist zum Kündigungstermin nicht zugeordnet. Dein Prozess benötigt einen Klärungszustand statt eines pauschalen technischen Fehlers.</p></div>
+    <div class="time-item"><h3>Vertragsende und Lieferbeginn passen nicht zusammen</h3><p>Ein früherer Lieferbeginn erzeugt einen Vertragskonflikt; ein späterer Lieferbeginn erzeugt eine Zuordnungslücke, die marktlich aufgefangen werden muss.</p></div>
+    <div class="time-item"><h3>Doppelte oder verspätete Nachrichten</h3><p>Asynchrone Marktkommunikation verlangt Idempotenz, Korrelation und versionierte Zustände. Eine Wiederholung darf keine zweite Zuordnung erzeugen.</p></div>
+    <div class="time-item"><h3>Zuordnung bestätigt, Rechnung noch nicht möglich</h3><p>Messwerte, Startstände, Preiszeiträume oder Netznutzungsdaten können fehlen. Marktlicher Erfolg und Abrechnungsbereitschaft sind getrennte Zustände.</p></div>
+  </div>
+
+  <div class="quiz" data-key="q4" data-answer="a" data-explain="Eine Lücke bedeutet nicht, dass physisch kein Strom fließt. Der Netzbetreiber schließt Zuordnungslücken bei verbrauchenden MaLo typischerweise über Ersatz- oder Grundversorgung.">
+    <h3>Das alte Vertragsverhältnis endet am 1. Oktober, der neue Lieferant soll erst am 4. Oktober starten. Was ist das richtige Modell?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Es entsteht eine Zuordnungslücke, die durch Ersatz-/Grundversorgung geschlossen werden kann.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Die MaLo wird für drei Tage physisch aus dem Netz entfernt.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Der Altlieferant bleibt ohne weitere Grundlage automatisch zuständig.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>9. Architektur: nicht einen Status, sondern mehrere Zeitachsen</h2>
+  <p>Ein einzelnes Feld <span class="code">supplier_status = ACTIVE</span> reicht nicht. Dein System muss mindestens drei eigenständige Zustandsmodelle führen.</p>
+  <div class="state-grid">
+    <div class="state"><h3>Vertrag LFA</h3><div class="state-flow"><span class="state-node">aktiv</span><span class="arrow">→</span><span class="state-node">Kündigung offen</span><span class="arrow">→</span><span class="state-node">Ende bestätigt</span><span class="arrow">→</span><span class="state-node">beendet</span></div></div>
+    <div class="state"><h3>Vertrag LFN</h3><div class="state-flow"><span class="state-node">angeboten</span><span class="arrow">→</span><span class="state-node">angenommen</span><span class="arrow">→</span><span class="state-node">Start geplant</span><span class="arrow">→</span><span class="state-node">in Belieferung</span></div></div>
+    <div class="state"><h3>Marktzuordnung</h3><div class="state-flow"><span class="state-node">LFA zugeordnet</span><span class="arrow">→</span><span class="state-node">Wechsel in Bearbeitung</span><span class="arrow">→</span><span class="state-node">LFN zugeordnet</span></div></div>
+  </div>
+
+  <h3>Vorgeschlagene Prozessinstanz</h3>
+  <div class="diagram">SupplierSwitchProcess
+---------------------
+id
+market_location_id
+customer_id
+old_supplier_id
+new_supplier_id
+requested_start_at
+confirmed_old_contract_end_at
+cancellation_status
+supply_start_status
+market_assignment_status
+correlation_ids[]
+last_regulatory_state
+created_at / updated_at
+version</div>
+
+  <h3>Domänenereignisse</h3>
+  <div class="event-stream">
+    <div class="event"><code>SwitchRequested</code><small>Kunde beauftragt den neuen Lieferanten.</small></div>
+    <div class="event"><code>CancellationSent</code><small>Kündigung wurde fachlich an den LFA übermittelt.</small></div>
+    <div class="event"><code>CancellationConfirmed</code><small>Das wirksame Vertragsende ist bekannt.</small></div>
+    <div class="event"><code>SupplyStartRegistered</code><small>Der Lieferbeginn wurde beim NB angemeldet.</small></div>
+    <div class="event"><code>MarketAssignmentConfirmed</code><small>Der LFN wird ab einem Wirksamkeitszeitpunkt zugeordnet.</small></div>
+    <div class="event"><code>BillingReadinessReached</code><small>Alle Daten für die erste belastbare Abrechnung liegen vor.</small></div>
+  </div>
+
+  <div class="danger insight"><strong>Wichtiger Modellierungsfehler:</strong> Lösche die alte Lieferantenzuordnung nicht und überschreibe sie nicht mit der neuen. Speichere beide als nicht überlappende Gültigkeitsintervalle. Nur so bleiben Audit, Korrekturen und rückwirkende Rekonstruktion möglich.</div>
+
+  <h3>Beispiel mit Gültigkeitsintervallen</h3>
+  <div class="diagram">SupplierAssignment
+
+Altstrom GmbH     [2024-03-01 00:00, 2026-10-01 00:00)
+Nordstrom Energie [2026-10-01 00:00, ∞)
+
+Regel: Ende alt = Beginn neu
+       keine Überlappung
+       keine unbeabsichtigte Lücke</div>
+</section>
+
+<section id="test">
+  <h2>10. Abschlusstest</h2>
+  <p>Beantworte alle Fragen und lasse dir anschließend die Gesamtwertung anzeigen.</p>
+  <div id="finalQuestions">
+    <div class="quiz final-q" data-answer="b" data-explain="LFN ist der neue Lieferant und initiiert typischerweise Kündigung sowie Lieferbeginn."><h3>1. Wer ist der LFN?</h3><label class="option"><input type="radio" name="f1" value="a">A: Der Netzbetreiber.</label><label class="option"><input type="radio" name="f1" value="b">B: Der neue Lieferant.</label><label class="option"><input type="radio" name="f1" value="c">C: Der Messstellenbetreiber.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="c" data-explain="Der LFA kennt die bestehende Vertragslage und prüft den Kündigungstermin."><h3>2. Wer prüft die Kündigung des bestehenden Liefervertrags?</h3><label class="option"><input type="radio" name="f2" value="a">A: Der ÜNB.</label><label class="option"><input type="radio" name="f2" value="b">B: Der Kunde allein.</label><label class="option"><input type="radio" name="f2" value="c">C: Der Altlieferant.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="a" data-explain="Der Netzbetreiber führt die marktliche Zuordnung der MaLo."><h3>3. Wer bestätigt die marktliche Lieferantenzuordnung?</h3><label class="option"><input type="radio" name="f3" value="a">A: Der Netzbetreiber.</label><label class="option"><input type="radio" name="f3" value="b">B: Der Kunde.</label><label class="option"><input type="radio" name="f3" value="c">C: Die Strombörse.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="b" data-explain="Der technische Wechsel ist schnell; vertragliche Fristen bleiben bestehen."><h3>4. Was ändert der 24-Stunden-Wechsel nicht?</h3><label class="option"><input type="radio" name="f4" value="a">A: Die Geschwindigkeit des technischen Prozesses.</label><label class="option"><input type="radio" name="f4" value="b">B: Mindestlaufzeiten und Kündigungsfristen.</label><label class="option"><input type="radio" name="f4" value="c">C: Die Möglichkeit eines werktäglichen Wechsels.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="c" data-explain="Ein idealer Wechsel hat identische Grenzzeitpunkte für Ende alt und Beginn neu."><h3>5. Welche Zeitbeziehung beschreibt einen lückenlosen Wechsel?</h3><label class="option"><input type="radio" name="f5" value="a">A: Beginn neu liegt drei Tage nach Ende alt.</label><label class="option"><input type="radio" name="f5" value="b">B: Beginn neu liegt vor Ende alt.</label><label class="option"><input type="radio" name="f5" value="c">C: Ende alt entspricht Beginn neu.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="a" data-explain="Vertrag, Marktzuordnung und Abrechnungsbereitschaft können unabhängig voneinander Fortschritte machen."><h3>6. Warum sind mehrere Zustandsmodelle nötig?</h3><label class="option"><input type="radio" name="f6" value="a">A: Weil Vertrag, Marktzuordnung und Abrechnung unterschiedliche Wahrheiten und Lebenszyklen besitzen.</label><label class="option"><input type="radio" name="f6" value="b">B: Weil jede Nachricht eine eigene Datenbank braucht.</label><label class="option"><input type="radio" name="f6" value="c">C: Nur wegen der Benutzeroberfläche.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="b" data-explain="Historische Zuordnungen werden als Gültigkeitsintervalle erhalten."><h3>7. Wie sollte eine neue Lieferantenzuordnung gespeichert werden?</h3><label class="option"><input type="radio" name="f7" value="a">A: Die alte Zeile vollständig überschreiben.</label><label class="option"><input type="radio" name="f7" value="b">B: Als neues Gültigkeitsintervall; das alte Intervall wird beendet.</label><label class="option"><input type="radio" name="f7" value="c">C: Nur im Nachrichtenarchiv.</label><div class="feedback"></div></div>
+    <div class="quiz final-q" data-answer="c" data-explain="Ein bestätigter Marktprozess garantiert noch nicht, dass alle abrechnungsrelevanten Daten vorliegen."><h3>8. Was folgt aus einer bestätigten Marktzuordnung nicht automatisch?</h3><label class="option"><input type="radio" name="f8" value="a">A: Ein definierter Zuordnungsbeginn.</label><label class="option"><input type="radio" name="f8" value="b">B: Ein neuer Lieferant ab dem Wirksamkeitszeitpunkt.</label><label class="option"><input type="radio" name="f8" value="c">C: Vollständige Abrechnungsbereitschaft.</label><div class="feedback"></div></div>
+  </div>
+  <button class="btn" id="gradeFinal">Test auswerten</button>
+  <div class="progress"><span id="progressBar"></span></div>
+  <div class="score" id="scoreText">Noch nicht ausgewertet.</div>
+</section>
+
+<section id="transfer">
+  <h2>11. Transfer in dein Abrechnungssystem</h2>
+  <p>Beantworte diese Fragen an deinem aktuellen Modell:</p>
+  <ol class="checklist">
+    <li>Kann ein neuer Liefervertrag angenommen sein, ohne dass die Marktzuordnung bestätigt ist?</li>
+    <li>Speicherst du den gewünschten und den bestätigten Starttermin getrennt?</li>
+    <li>Kann dein Prozess auf eine Kündigungsbestätigung mit geändertem Termin reagieren?</li>
+    <li>Erkennst du Überlappungen und Lücken in Lieferantenzuordnungen?</li>
+    <li>Sind eingehende Nachrichten idempotent und über Korrelationen einem Prozess zugeordnet?</li>
+    <li>Kannst du den Zustand eines Wechsels zu jedem historischen Zeitpunkt rekonstruieren?</li>
+  </ol>
+  <div class="insight">Die zentrale Architekturidee dieser Lektion lautet: <strong>Ein Lieferantenwechsel ist eine Saga über mehrere Datenhoheiten – nicht eine atomare Datenbanktransaktion.</strong></div>
+</section>
+
+<section id="quellen">
+  <h2>Quellen und fachlicher Stand</h2>
+  <ul class="source-list">
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/831_gpke/gpke_node.html" target="_blank" rel="noopener">Bundesnetzagentur: aktuell gültige GPKE-Fassung</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2024/BK6-24-174/Beschluss/BK6-24-174_GPKE_Teil2_Lesefassung.pdf?__blob=publicationFile&v=1" target="_blank" rel="noopener">GPKE Teil 2 – Zuordnungsprozesse (Lesefassung)</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/8353_Lieferantenwechsel/BK6_Lieferantenwechsel24h_node.html" target="_blank" rel="noopener">Bundesnetzagentur: Lieferantenwechsel in 24 Stunden</a></li>
+    <li><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/KuendigungLieferantenwechsel/Lieferantenwechsel/start.html" target="_blank" rel="noopener">Bundesnetzagentur Verbraucherportal: Lieferantenwechsel</a></li>
+  </ul>
+  <p class="source-note">Stand der Lektion: 30. Juli 2026. Die Lektion vereinfacht komplexe Marktprozesse didaktisch. Für Implementierungen sind die verbindlichen Prozessbeschreibungen, Anwendungshandbücher, Entscheidungsbäume und Datenformate maßgeblich.</p>
+</section>
+
+<p class="footer">Nächste Lektion: Von der fachlichen Prozessbeschreibung zur Nachricht – Transaktionen, Prüfungen, positive und negative Antworten sowie die Rolle von UTILMD, APERAK und CONTRL.</p>
+</main>
+<script>
+  const explanations = {
+    q1: 'Bei einem reinen Lieferantenwechsel bleibt die MaLo bestehen. Geändert werden vor allem Vertrag, Lieferantenzuordnung und gegebenenfalls Bilanzkreiszuordnung.',
+    q2: 'Die Vertragskündigung und die marktliche Lieferantenzuordnung sind getrennte Wahrheiten. Beide müssen aufeinander abgestimmt werden.',
+    q3: 'Der 24-Stunden-Wechsel beschleunigt den technischen Marktprozess. Er hebt weder Mindestvertragslaufzeiten noch Kündigungsfristen auf.',
+    q4: 'Eine Lücke bedeutet nicht, dass physisch kein Strom fließt. Sie wird bei verbrauchenden MaLo typischerweise durch Ersatz- oder Grundversorgung geschlossen.'
+  };
+
+  document.querySelectorAll('.quiz .check').forEach(button => {
+    button.addEventListener('click', () => {
+      const quiz = button.closest('.quiz');
+      const selected = quiz.querySelector('input[type="radio"]:checked');
+      const feedback = quiz.querySelector('.feedback');
+      if (!selected) {
+        feedback.className = 'feedback bad';
+        feedback.textContent = 'Bitte wähle zuerst eine Antwort aus.';
+        return;
+      }
+      const correct = selected.value === quiz.dataset.answer;
+      feedback.className = 'feedback ' + (correct ? 'good' : 'bad');
+      const explanation = quiz.dataset.explain || explanations[quiz.dataset.key] || '';
+      feedback.textContent = (correct ? 'Richtig. ' : 'Noch nicht. ') + explanation;
+    });
+  });
+
+  const steps = [
+    {title:'Wechselauftrag und Vollmacht',actor:'Kunde → LFN',tag:'Vertragswelt',risk:'Identität / MaLo',text:'Der Kunde schließt den neuen Vertrag und bevollmächtigt den LFN, den bestehenden Vertrag in seinem Namen zu kündigen. Der LFN muss die betroffene MaLo eindeutig identifizieren.',question:'Noch ist weder der Altvertrag beendet noch die neue Marktzuordnung hergestellt.'},
+    {title:'Kündigung an den LFA',actor:'LFN → LFA',tag:'Kündigungsprozess',risk:'Termin',text:'Der LFN kündigt zum fixen oder nächstmöglichen Zeitpunkt. Fachlicher Schlüssel ist die MaLo-ID. Der LFA prüft seine Vertragslage.',question:'Der gewünschte Termin ist eine Anfrage, noch kein bestätigtes Vertragsende.'},
+    {title:'Antwort des LFA',actor:'LFA → LFN',tag:'Vertragsentscheidung',risk:'Bestätigt / geändert / abgelehnt',text:'Der LFA bestätigt die Kündigung, nennt einen geänderten bzw. nächstmöglichen Termin oder lehnt mit Begründung ab. Bei Bestätigung stößt er sein Lieferende gegenüber dem NB an.',question:'Jetzt kennt der LFN den fachlich belastbaren Endtermin des Altvertrags.'},
+    {title:'Anmeldung des Lieferbeginns',actor:'LFN → NB',tag:'Zuordnungsprozess',risk:'MaLo / BK / Wirksamkeit',text:'Der LFN meldet seine Zuordnung zur MaLo ab dem abgestimmten Termin an. Der NB prüft die Zuordnungssituation und die prozessualen Voraussetzungen.',question:'Der neue Vertrag allein macht den LFN noch nicht zum marktlich zugeordneten Lieferanten.'},
+    {title:'Koordination der Zuordnungen',actor:'NB',tag:'Marktwahrheit',risk:'Lücke / Überlappung',text:'Der NB beendet gegebenenfalls die Zuordnung des LFA und stellt die Zuordnung des LFN her. Ende alt und Beginn neu sollen lückenlos aneinandergrenzen.',question:'Eine Lücke wird nicht als „niemand liefert“ ignoriert, sondern durch Auffangprozesse behandelt.'},
+    {title:'Folgeprozesse und Abrechnung',actor:'NB / MSB / LF',tag:'Nachlauf',risk:'Messwerte / Stammdaten',text:'Stammdaten, Bilanzierungs- und Netznutzungsinformationen sowie Messwerte müssen auf den neuen Zeitraum ausgerichtet werden. Erst danach wird die Abrechnung vollständig belastbar.',question:'Marktlicher Erfolg und Abrechnungsbereitschaft sind nicht dasselbe.'}
+  ];
+  let currentStep = 0;
+  const stepCard = document.getElementById('stepCard');
+  const stepIndicator = document.getElementById('stepIndicator');
+  const prevStep = document.getElementById('prevStep');
+  const nextStep = document.getElementById('nextStep');
+  function renderStep(){
+    stepIndicator.innerHTML = steps.map((_,i)=>`<span class="step-dot ${i<=currentStep?'done':''}"></span>`).join('');
+    const s = steps[currentStep];
+    stepCard.innerHTML = `<div class="step-meta"><span class="pill actor">${s.actor}</span><span class="pill">${s.tag}</span><span class="pill risk">Risiko: ${s.risk}</span></div><h3>${currentStep+1}. ${s.title}</h3><p>${s.text}</p><div class="insight" style="margin-bottom:0">${s.question}</div>`;
+    prevStep.disabled = currentStep===0;
+    nextStep.textContent = currentStep===steps.length-1 ? 'Von vorn' : 'Nächster Schritt';
+  }
+  prevStep.addEventListener('click',()=>{if(currentStep>0){currentStep--;renderStep();}});
+  nextStep.addEventListener('click',()=>{currentStep=currentStep===steps.length-1?0:currentStep+1;renderStep();});
+  renderStep();
+
+  const orderItems = [
+    {id:'contract',label:'Neuen Vertrag und Vollmacht erfassen'},
+    {id:'cancel',label:'Kündigung an LFA senden'},
+    {id:'cancelResponse',label:'Bestätigtes Vertragsende verarbeiten'},
+    {id:'start',label:'Lieferbeginn beim NB anmelden'},
+    {id:'assignment',label:'Neue Marktzuordnung bestätigen'},
+    {id:'billing',label:'Folgedaten und Abrechnung vorbereiten'}
+  ];
+  const correctOrder = orderItems.map(x=>x.id);
+  let picked = [];
+  const orderOptions = document.getElementById('orderOptions');
+  const orderSelected = document.getElementById('orderSelected');
+  function renderOrder(){
+    orderOptions.innerHTML = orderItems.filter(x=>!picked.includes(x.id)).map(x=>`<button class="order-option" data-id="${x.id}">${x.label}</button>`).join('');
+    orderSelected.innerHTML = picked.length ? picked.map((id,i)=>`<span class="order-token">${i+1}. ${orderItems.find(x=>x.id===id).label}</span>`).join('') : 'Noch kein Schritt gewählt.';
+    orderOptions.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{picked.push(b.dataset.id);renderOrder();}));
+  }
+  document.getElementById('checkOrder').addEventListener('click',()=>{
+    const feedback=document.getElementById('orderFeedback');
+    if(picked.length!==correctOrder.length){feedback.className='feedback bad';feedback.textContent='Wähle zunächst alle sechs Schritte.';return;}
+    const ok=picked.every((id,i)=>id===correctOrder[i]);
+    feedback.className='feedback '+(ok?'good':'bad');
+    feedback.textContent=ok?'Richtig. Erst Vertragsende klären, dann den abgestimmten Lieferbeginn herstellen und anschließend Folgeprozesse abschließen.':'Noch nicht. Denke an die Abhängigkeit: bestätigtes Vertragsende vor abgestimmtem Lieferbeginn; Folgedaten kommen nach der Zuordnung.';
+  });
+  document.getElementById('resetOrder').addEventListener('click',()=>{picked=[];document.getElementById('orderFeedback').className='feedback';renderOrder();});
+  renderOrder();
+
+  function parseDate(id){const value=document.getElementById(id).value;return value?new Date(value+'T00:00:00'):null;}
+  function dayDiff(a,b){return Math.round((b-a)/(1000*60*60*24));}
+  document.getElementById('simulate').addEventListener('click',()=>{
+    const end=parseDate('endDate'); const start=parseDate('startDate');
+    const cancel=document.getElementById('cancelStatus').value;
+    const malo=document.getElementById('maloStatus').value;
+    const out=document.getElementById('simulationResult');
+    if(!end||!start){out.innerHTML='<div class="badtext">Bitte beide Datumsfelder ausfüllen.</div>';return;}
+    const diff=dayDiff(end,start);
+    let contractClass='ok',contractText='Vertragsende ist bestätigt.';
+    if(cancel==='pending'){contractClass='warntext';contractText='Kündigung ist noch offen: Lieferbeginn bleibt fachlich riskant.';}
+    if(cancel==='rejected'){contractClass='badtext';contractText='Kündigung wurde abgelehnt: gewünschter Wechsel ist so nicht ausführbar.';}
+    if(cancel==='already'){contractClass='ok';contractText='Vertrag war bereits gekündigt; maßgeblich ist das vorhandene bestätigte Ende.';}
+    let timingClass='ok',timingText='Lückenloser Grenzzeitpunkt: Ende alt = Beginn neu.';
+    if(diff<0){timingClass='badtext';timingText=`Der neue Beginn liegt ${Math.abs(diff)} Tag(e) vor dem Ende des Altvertrags: Überlappungs-/Vertragskonflikt.`;}
+    if(diff>0){timingClass='warntext';timingText=`Zwischen Ende alt und Beginn neu liegen ${diff} Tag(e): Zuordnungslücke und mögliche Ersatz-/Grundversorgung.`;}
+    let idClass='ok',idText='MaLo ist eindeutig identifiziert.';
+    if(malo==='weak'){idClass='warntext';idText='Identifikation ist schwächer; Klärung oder MaLo-ID-Ermittlung kann nötig sein.';}
+    if(malo==='wrong'){idClass='badtext';idText='Falsche MaLo: Prozess nicht senden, bevor die Identität geklärt ist.';}
+    const ready = (cancel==='confirmed'||cancel==='already') && diff===0 && malo==='known';
+    out.innerHTML=`<div class="result-line"><strong>Vertrag</strong><span class="${contractClass}">${contractText}</span></div><div class="result-line"><strong>Zeitachsen</strong><span class="${timingClass}">${timingText}</span></div><div class="result-line"><strong>Identifikation</strong><span class="${idClass}">${idText}</span></div><div class="result-line"><strong>Gesamtbewertung</strong><span class="${ready?'ok':'warntext'}">${ready?'Guter Kandidat für einen geraden Wechselprozess.':'Vor Anmeldung sind Klärung oder Terminabstimmung erforderlich.'}</span></div>`;
+  });
+  document.getElementById('simulate').click();
+
+  document.getElementById('gradeFinal').addEventListener('click',()=>{
+    const questions=[...document.querySelectorAll('.final-q')];
+    let score=0,answered=0;
+    questions.forEach(q=>{
+      const selected=q.querySelector('input[type="radio"]:checked');
+      const feedback=q.querySelector('.feedback');
+      if(!selected){feedback.className='feedback bad';feedback.textContent='Nicht beantwortet.';return;}
+      answered++;
+      const ok=selected.value===q.dataset.answer;
+      if(ok)score++;
+      feedback.className='feedback '+(ok?'good':'bad');
+      feedback.textContent=(ok?'Richtig. ':'Falsch. ')+(q.dataset.explain||'');
+    });
+    const percent=Math.round(score/questions.length*100);
+    document.getElementById('progressBar').style.width=percent+'%';
+    let label=percent>=88?'Sehr sicher':percent>=63?'Gute Grundlage':'Noch einmal wiederholen';
+    document.getElementById('scoreText').textContent=`${score} von ${questions.length} richtig (${percent} %) – ${label}. ${answered<questions.length?'Nicht beantwortete Fragen zählen als falsch.':''}`;
+  });
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>

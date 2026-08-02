@@ -1,1 +1,600 @@
-<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="styles.css"></head><body><main></main><script>window.LESSON={no:'08',minutes:15,title:'Vom Messwert zur Energiemenge',lede:'Ein Wert wird erst durch Zeitbezug, Einheit, Qualität, Herkunft und Version fachlich belastbar.',objectives:['Zählerstand, Lastgang und Energiemenge unterscheiden','Messwertqualität und Ersatzwert kennzeichnen','Ableitungen reproduzierbar speichern'],chapters:[{title:'Wert ist nicht gleich Menge',html:'<p>Zwei Zählerstände ergeben durch Differenz eine Verbrauchsmenge. Ein Last- oder Zählerstandsgang liefert zeitbezogene Werte. Ersatz- und Korrekturwerte verändern den fachlichen Stand, ohne alte Versionen auszulöschen.</p><pre class="model">Reading { value, unit, timestamp, quality, source, version }\nQuantity { from, to, value, method, inputVersions[] }</pre>'},{title:'Provenienz als Feature',html:'<p>Eine Rechnung muss später erklären können, aus welchen Eingangswerten und welcher Berechnungsregel eine Menge entstand.</p><p class="callout">Idempotent verarbeiten: dieselbe Nachricht darf kein zweites fachliches Ergebnis erzeugen. Eine neue Version darf dagegen eine Neuberechnung auslösen.</p>'}],quiz:[{question:'Was fehlt der Zahl „4711“, damit sie ein brauchbarer Messwert wird?',options:['Nur eine Farbe','Zeit, Einheit, Qualität und Herkunft','Ein Kundenname reicht'],answer:1},{question:'Wie behandelst du eine Messwertkorrektur?',options:['Alten Wert löschen','Neue Version speichern und abhängige Ergebnisse neu bewerten','Ignorieren'],answer:1}],task:{title:'Baue die Herkunftskette',prompt:'Welche Referenzen braucht eine abgeleitete Energiemenge?',answer:'<p>Referenzen auf konkrete Versionen der Eingangswerte, die verwendete Berechnungsregel samt Version, den Ausführungszeitpunkt und einen fachlichen Status. Damit ist die Ableitung reproduzierbar und auditierbar.</p>'},sources:[['Bundesnetzagentur: WiM','https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/833_wim/wim_basepage.html'],['Bundesnetzagentur: BK6-24-174 / Zählerstandsgänge','https://www.bundesnetzagentur.de/DE/Beschlusskammern/1_GZ/BK6-GZ/2024/BK6-24-174/BK6-24-174_verfahren.html']],prev:'07',next:'09'};</script><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interaktive Lektion zu Messwerten in der Marktkommunikation: Zählerstand, Lastgang, Energiemenge, Messwertqualität, MSCONS, Korrekturen, Strom- und Gasumrechnung sowie Softwarearchitektur." />
+  <title>Lektion 8 – Vom Messwert zur abrechenbaren Energiemenge</title>
+  <style>
+    :root{
+      --bg:#f4f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#d9e2ef;
+      --accent:#0b6b63;--accent2:#2457d6;--accent3:#7a3ee6;--soft:#e8f7f4;
+      --good:#15733b;--goodsoft:#eaf8ef;--bad:#b42318;--badsoft:#fff0ef;
+      --warn:#92520a;--warnsoft:#fff7e8;--ink:#0f172a;--shadow:0 14px 38px rgba(15,23,42,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);line-height:1.65}
+    button,input,select{font:inherit}
+    .hero{background:radial-gradient(circle at 88% 12%,rgba(255,255,255,.18),transparent 30%),linear-gradient(135deg,#072c2a 0%,#0b6b63 48%,#2457d6 100%);color:#fff;padding:72px 24px 58px}
+    .wrap{width:min(1050px,calc(100% - 32px));margin:0 auto}
+    .eyebrow{display:inline-flex;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.13);font-size:.84rem;font-weight:850;letter-spacing:.04em;text-transform:uppercase}
+    h1{margin:19px 0 14px;font-size:clamp(2.2rem,6vw,4.4rem);line-height:1.02;max-width:940px}
+    .subtitle{font-size:clamp(1.03rem,2.4vw,1.34rem);max-width:900px;color:rgba(255,255,255,.9);margin:0}
+    .hero-note{margin-top:22px;display:inline-flex;gap:9px;align-items:center;padding:10px 14px;border:1px solid rgba(255,255,255,.25);border-radius:14px;background:rgba(15,23,42,.22);font-size:.94rem}
+    nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(16px);background:rgba(244,247,251,.91);border-bottom:1px solid rgba(217,226,239,.92)}
+    .nav-inner{display:flex;gap:10px;overflow-x:auto;padding:12px 0;scrollbar-width:none}.nav-inner::-webkit-scrollbar{display:none}
+    nav a{white-space:nowrap;text-decoration:none;color:var(--text);background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:999px;font-size:.91rem;font-weight:760}
+    main{padding:34px 0 82px}
+    section{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:clamp(24px,4vw,43px);margin-bottom:24px}
+    section h2{margin-top:0;font-size:clamp(1.55rem,3vw,2.28rem);line-height:1.18}
+    section h3{margin-top:30px;line-height:1.25}
+    .lead{font-size:1.08rem;color:#344054}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:16px;margin-top:20px}
+    .mini{border:1px solid var(--line);border-radius:15px;padding:18px;background:#fbfcfe}.mini strong{display:block;margin-bottom:7px}.mini p{margin:.35rem 0 0}
+    .badge{display:inline-block;padding:3px 9px;border-radius:999px;background:var(--soft);color:#0f5f59;font-weight:850;font-size:.79rem;margin-bottom:8px}
+    .insight{border-left:5px solid var(--accent);background:var(--soft);padding:18px 20px;border-radius:12px;margin:22px 0;font-weight:650}
+    .warning{border-left-color:#f59e0b;background:var(--warnsoft);color:#68400b}.success{border-left-color:var(--accent);background:#e8f7f4;color:#115e59}.danger{border-left-color:var(--bad);background:var(--badsoft);color:#7a271a}
+    .diagram{margin:24px 0;padding:22px;border-radius:16px;background:var(--ink);color:#e6eeff;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre;line-height:1.52;font-size:.92rem}
+    .quiz{margin-top:26px;border:1px solid var(--line);border-radius:16px;padding:20px;background:#fcfdff}.quiz h3{margin:0 0 14px;font-size:1.08rem}
+    .option{display:block;border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:10px 0;cursor:pointer;transition:.18s;background:#fff}.option:hover{border-color:#8bc9c3;transform:translateY(-1px)}.option input{margin-right:10px}
+    .feedback{display:none;margin-top:14px;padding:12px 14px;border-radius:12px;font-weight:650}.feedback.good{display:block;color:var(--good);background:var(--goodsoft);border:1px solid #b7e0c4}.feedback.bad{display:block;color:var(--bad);background:var(--badsoft);border:1px solid #f5c2bd}
+    .btn{appearance:none;border:0;border-radius:12px;padding:11px 16px;font-weight:830;cursor:pointer;background:var(--accent);color:#fff;margin-top:12px}.btn.secondary{background:#334155}.btn.blue{background:var(--accent2)}.btn.ghost{background:#eef2ff;color:#1e40af;border:1px solid #cfd8ff}.btn:hover{filter:brightness(.97)}.btn:disabled{opacity:.45;cursor:not-allowed}
+    .layer-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:24px 0}.layer{border:1px solid var(--line);border-radius:16px;padding:17px;background:linear-gradient(180deg,#fff,#f8faff)}.layer .n{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900}.layer h3{font-size:1rem;margin:10px 0 6px}.layer p{font-size:.91rem;margin:0;color:#475467}
+    .split{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:22px}.lane{border:1px solid var(--line);border-radius:18px;padding:20px;background:#fbfcff}.lane h3{margin:0 0 10px}.lane .number{display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--accent);color:#fff;font-weight:900;margin-right:8px}
+    .stepper{border:1px solid #b9dcd8;background:linear-gradient(135deg,#f3fbfa,#f4f7ff);border-radius:18px;padding:22px;margin-top:22px}.step-indicator{display:flex;gap:8px;align-items:center;margin-bottom:18px}.step-dot{height:8px;flex:1;border-radius:999px;background:#d9e2ef}.step-dot.done{background:linear-gradient(90deg,var(--accent),var(--accent2))}.step-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px;min-height:275px}.step-meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}.pill{display:inline-flex;padding:4px 9px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:.8rem;font-weight:850}.pill.actor{background:#e8f7f4;color:#115e59}.pill.risk{background:#fff7e8;color:#8a4b08}.step-card h3{margin:8px 0}.step-actions{display:flex;gap:10px;flex-wrap:wrap}
+    .order-box{border:1px solid #b9dcd8;border-radius:18px;padding:20px;background:#f4fbfa;margin-top:22px}.order-options{display:grid;gap:10px;margin-top:14px}.order-option{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;font-weight:700}.order-option:hover{border-color:#8bc9c3}.order-selected{margin-top:16px;padding:14px;border-radius:12px;background:#0f172a;color:#e5edff;min-height:55px}.order-token{display:inline-block;margin:3px;padding:5px 8px;border-radius:8px;background:#334155;font-size:.84rem;cursor:pointer}.order-token:hover{background:#475569}.random-note{font-size:.9rem;color:#475467;margin:7px 0 0}
+    .lab{border:1px solid #b9dcd8;background:linear-gradient(135deg,#f3fbfa,#f4f7ff);border-radius:18px;padding:22px;margin-top:22px}.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}.field label{display:block;font-weight:760;margin-bottom:6px}.field input,.field select{width:100%;border:1px solid var(--line);border-radius:10px;padding:11px;background:#fff;color:var(--text)}
+    .result-card{margin-top:18px;border-radius:15px;background:#0f172a;color:#e7efff;padding:18px;display:grid;gap:9px}.result-line{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:8px}.result-line:last-child{border-bottom:0;padding-bottom:0}.result-text{color:#dbeafe}.ok{color:#86efac}.warntext{color:#fde68a}.badtext{color:#fca5a5}
+    .object-stack{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:22px}.object-card{position:relative;border:1px solid var(--line);border-radius:16px;padding:17px;background:#fff}.object-card:not(:last-child):after{content:"→";position:absolute;right:-12px;top:45%;z-index:2;font-weight:900;color:var(--accent2)}.object-card strong{display:block;margin-bottom:6px}.object-card small{color:var(--muted)}
+    .value-table{width:100%;border-collapse:collapse;margin-top:18px}.value-table th,.value-table td{text-align:left;padding:12px;border-bottom:1px solid var(--line);vertical-align:top}.value-table th{background:#f8fafc}.code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#eef2ff;padding:2px 6px;border-radius:6px}
+    .matching{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:20px}.match-column{display:grid;gap:10px}.match-item{border:1px solid var(--line);background:#fff;border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;font-weight:720}.match-item.selected{outline:3px solid rgba(11,107,99,.22);border-color:var(--accent)}.match-item.matched{background:var(--goodsoft);border-color:#98d5aa;color:#14532d;cursor:default}.match-item.wrong{animation:shake .28s linear;background:var(--badsoft);border-color:#f1aaa4}@keyframes shake{25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+    .version-list{display:grid;gap:10px;margin-top:16px}.version{display:grid;grid-template-columns:92px 1fr auto;gap:12px;align-items:start;border:1px solid var(--line);border-radius:12px;padding:13px;background:#fff}.version .vtag{font-weight:900;color:#0f5f59}.version .status{font-size:.78rem;font-weight:850;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3}.version.superseded{opacity:.72}.version.superseded .status{background:#f2f4f7;color:#475467}.version.active{border-color:#7fc9c1;background:#f4fbfa}.version.active .status{background:#d8f3ed;color:#115e59}
+    .state-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:20px}.state{border:1px solid var(--line);border-radius:16px;padding:18px;background:#fbfcfe}.state h3{margin:0 0 12px}.state-flow{display:flex;flex-wrap:wrap;gap:7px;align-items:center}.state-node{padding:7px 9px;border-radius:9px;background:#eef2ff;color:#3730a3;font-size:.83rem;font-weight:800}.arrow{color:var(--muted);font-weight:900}
+    .event-stream{display:grid;gap:10px;margin-top:18px}.event{display:grid;grid-template-columns:230px 1fr;gap:14px;padding:13px 15px;border:1px solid var(--line);border-radius:12px;background:#fff}.event code{font-weight:850;color:#0f5f59}.event small{color:var(--muted)}
+    .scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:15px;margin-top:20px}.scenario{border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden}.scenario button{width:100%;text-align:left;border:0;background:#f8faff;padding:17px;font-weight:850;cursor:pointer;color:var(--text)}.scenario .answer{display:none;padding:17px;border-top:1px solid var(--line)}.scenario.open .answer{display:block}
+    .progress{height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden;margin-top:16px}.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:.35s}.score{font-size:1.1rem;font-weight:900;margin-top:12px}
+    .source-list{display:grid;gap:12px;margin-top:18px}.source{padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe}.source a{color:#1d4ed8;font-weight:760;word-break:break-word}
+    footer{text-align:center;color:var(--muted);padding:12px 20px 45px}
+    @media(max-width:900px){.layer-grid,.object-stack{grid-template-columns:repeat(2,1fr)}.object-card:after{display:none}.state-grid{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:700px){.split,.matching{grid-template-columns:1fr}.event{grid-template-columns:1fr}.layer-grid,.object-stack,.state-grid{grid-template-columns:1fr}.result-line{display:block}.hero{padding-top:52px}}
+    @media print{nav,.btn,.step-actions,.order-options{display:none!important}body{background:#fff}section{box-shadow:none;break-inside:avoid}.hero{padding:35px;background:#17324d}}
+  </style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Marktkommunikation für Softwareentwickler · Lektion 8</span>
+    <h1>Vom Messwert zur abrechenbaren Energiemenge</h1>
+    <p class="subtitle">Ein Zählerstand ist noch kein Verbrauch, eine MSCONS noch keine Rechnung und ein empfangener Wert noch nicht automatisch abrechnungsfähig. Diese Lektion baut die vollständige fachliche Kette auf.</p>
+    <div class="hero-note">🧭 Fokus: Messobjekt · Zeitbezug · Qualität · Ableitung · Korrektur · Billing Readiness</div>
+  </div>
+</header>
+<nav>
+  <div class="wrap nav-inner">
+    <a href="#ziele">Lernziele</a><a href="#geschichte">Ausgangsfall</a><a href="#begriffe">Wertarten</a><a href="#objekte">Objekte</a><a href="#prozess">Prozess</a><a href="#reihenfolge">Reihenfolge</a><a href="#labore">Rechenlabore</a><a href="#qualitaet">Qualität</a><a href="#korrektur">Korrekturen</a><a href="#architektur">Architektur</a><a href="#test">Test</a>
+  </div>
+</nav>
+<main class="wrap">
+<section id="ziele">
+  <h2>1. Lernziele</h2>
+  <p class="lead">Nach dieser Lektion solltest du eine eingehende Messwertnachricht nicht nur technisch parsen, sondern fachlich beurteilen können.</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Begriff</span><strong>Zählerstand ≠ Energiemenge</strong><p>Du kannst Zeitpunktgrößen, Zeitraumgrößen und Zeitreihen sauber trennen.</p></div>
+    <div class="mini"><span class="badge">Zuordnung</span><strong>Wert braucht Kontext</strong><p>Du erkennst, an welchem Register, welcher MeLo, MaLo oder Konfiguration ein Wert gilt.</p></div>
+    <div class="mini"><span class="badge">Qualität</span><strong>Empfangen ≠ abrechenbar</strong><p>Du unterscheidest Quelle, Status, Plausibilität und fachliche Freigabe.</p></div>
+    <div class="mini"><span class="badge">Korrektur</span><strong>Versionieren statt überschreiben</strong><p>Du kannst Messwertkorrekturen und deren Rechnungswirkung nachvollziehbar modellieren.</p></div>
+    <div class="mini"><span class="badge">Sparte</span><strong>Strom und Gas</strong><p>Du verstehst, warum beim Gas aus Kubikmetern erst eine Energiemenge in kWh abgeleitet wird.</p></div>
+    <div class="mini"><span class="badge">Architektur</span><strong>Provenienz bis zur Rechnung</strong><p>Du kannst jede Rechnungsmenge auf Eingangs- und Ableitungsdaten zurückführen.</p></div>
+  </div>
+</section>
+
+<section id="geschichte">
+  <h2>2. Ausgangsfall: Der Endzählerstand ist da</h2>
+  <p>Herr Müller zieht am 30. September aus. Er fotografiert seinen Stromzähler und meldet den Stand <strong>23.860,4 kWh</strong>. Im System liegt als vorheriger Stand <strong>22.410,7 kWh</strong>.</p>
+  <div class="diagram">Kundenfoto:             23.860,4 kWh  am 30.09. 18:12
+Vorheriger Stand:        22.410,7 kWh  am 01.04. 00:00
+                                  │
+                                  ▼
+Einfache Differenz:       1.449,7 kWh
+                                  │
+                 aber ist das schon abrechenbar?
+                                  │
+          ┌───────────────────────┼────────────────────────┐
+          ▼                       ▼                        ▼
+     richtiger Zähler?       richtiger Zeitraum?     gültige Qualität?
+          ▼                       ▼                        ▼
+     richtiger Register?     Abgrenzung nötig?       später korrigiert?</div>
+  <div class="insight"><strong>Zentrale Erkenntnis:</strong> Der Zahlenwert allein ist fast bedeutungslos. Ein nutzbarer Messwert ist ein Tupel aus Objekt, Register beziehungsweise Konfiguration, Zeitbezug, Wert, Einheit, Quelle, Qualität und Version.</div>
+
+  <div class="quiz" data-key="q1" data-answer="c" data-explain="Ein einzelner Stand beschreibt einen kumulierten Registerwert zu einem Zeitpunkt. Erst mit einem passenden Vergleichswert und den fachlichen Rahmenbedingungen kann daraus eine Energiemenge für einen Zeitraum abgeleitet werden.">
+    <h3>Was kann der Lieferant aus dem Endstand allein sicher ableiten?</h3>
+    <label class="option"><input type="radio" name="q1" value="a">A: Den vollständigen Verbrauch seit Vertragsbeginn.</label>
+    <label class="option"><input type="radio" name="q1" value="b">B: Den Rechnungsbetrag.</label>
+    <label class="option"><input type="radio" name="q1" value="c">C: Einen kumulierten Registerstand zu einem bestimmten Zeitpunkt.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="begriffe">
+  <h2>3. Vier Wertarten, die du nicht vermischen darfst</h2>
+  <table class="value-table">
+    <thead><tr><th>Wertart</th><th>Fachliche Bedeutung</th><th>Beispiel</th><th>Zeitbezug</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Zählerstand</strong></td><td>Kumulierte Anzeige eines Registers.</td><td>23.860,4 kWh</td><td>Zeitpunkt</td></tr>
+      <tr><td><strong>Energiemenge</strong></td><td>Verbrauch oder Einspeisung in einem abgegrenzten Zeitraum.</td><td>1.449,7 kWh</td><td>Intervall</td></tr>
+      <tr><td><strong>Lastgang / Zeitreihe</strong></td><td>Folge von Intervallwerten, beispielsweise Viertelstundenwerte.</td><td>0,31; 0,28; 0,34 … kWh</td><td>Viele Intervalle</td></tr>
+      <tr><td><strong>Leistungsmaximum</strong></td><td>Höchste relevante Leistung innerhalb eines Bezugszeitraums.</td><td>86,2 kW</td><td>Maximum plus Zeitraum</td></tr>
+    </tbody>
+  </table>
+
+  <div class="split">
+    <div class="lane"><h3><span class="number">A</span>Zählerstand</h3><p>Ein Stand ist wie der Kilometerstand eines Autos: Er sagt, wo das Register jetzt steht, aber nicht ohne Weiteres, wie viele Kilometer in deiner Vertragsperiode gefahren wurden.</p></div>
+    <div class="lane"><h3><span class="number">B</span>Energiemenge</h3><p>Eine Menge ist wie die gefahrene Strecke zwischen zwei Zeitpunkten. Sie kann aus Ständen berechnet, aus Intervallen summiert oder über ein Messkonzept abgeleitet werden.</p></div>
+  </div>
+
+  <div class="warning insight"><strong>Typischer Fehler im Datenmodell:</strong> Ein Feld <span class="code">consumption</span> ohne Angabe, ob es ein Stand, eine Differenz, eine Zeitreihe oder bereits eine abrechnungsfähige Menge ist.</div>
+
+  <div class="quiz" data-key="q2" data-answer="b" data-explain="Der Lastgang ist eine geordnete Folge von Werten für feste Intervalle. Seine Summe kann eine Energiemenge ergeben, aber die Zeitreihe enthält zusätzlich die zeitliche Verteilung.">
+    <h3>Was unterscheidet einen Lastgang von einer einzelnen Energiemenge?</h3>
+    <label class="option"><input type="radio" name="q2" value="a">A: Ein Lastgang hat keine Einheit.</label>
+    <label class="option"><input type="radio" name="q2" value="b">B: Ein Lastgang enthält die zeitliche Verteilung auf mehrere Intervalle.</label>
+    <label class="option"><input type="radio" name="q2" value="c">C: Eine Energiemenge darf nie aus einem Lastgang summiert werden.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="objekte">
+  <h2>4. An welchem Objekt hängt der Wert?</h2>
+  <p>Die fachliche Kette besteht aus mehreren Ebenen. Nicht jeder Wert gehört direkt an den Kunden oder an die MaLo.</p>
+  <div class="object-stack">
+    <div class="object-card"><strong>Messgerät</strong><small>Konkrete Hardware mit Gerätenummer und Einbauzeitraum.</small></div>
+    <div class="object-card"><strong>Register</strong><small>Messkanal, zum Beispiel Bezug, Einspeisung, HT oder NT.</small></div>
+    <div class="object-card"><strong>Messlokation</strong><small>Ort der messtechnischen Erfassung.</small></div>
+    <div class="object-card"><strong>Messkonzept</strong><small>Regeln zur Ableitung oder Aggregation.</small></div>
+    <div class="object-card"><strong>Marktlokation</strong><small>Wirtschaftliche Energiemenge für Belieferung und Abrechnung.</small></div>
+  </div>
+
+  <h3>Ein einfaches Beispiel</h3>
+  <div class="diagram">Messgerät Z-4711
+  ├── Register 1.8.0  Bezug gesamt   → Stand 23.860,4 kWh
+  └── Register 2.8.0  Einspeisung    → Stand  8.420,1 kWh
+
+Messlokation DE...M...
+  │
+  └── Messkonzept ordnet Register und Rechenregel zu
+        ├── Verbrauchs-MaLo  ← Bezug
+        └── Erzeugungs-MaLo  ← Einspeisung</div>
+
+  <p>OBIS-Kennzahlen identifizieren fachlich Messgrößen beziehungsweise Registerarten. Die Beispiele <span class="code">1.8.0</span> für Bezug und <span class="code">2.8.0</span> für Einspeisung sind verbreitet; produktiv musst du die gültigen Codelisten und die zeitabhängig ausgetauschten Stammdaten verwenden.</p>
+
+  <div class="matching" id="matchingGame">
+    <div class="match-column" id="matchLeft"></div>
+    <div class="match-column" id="matchRight"></div>
+  </div>
+  <div class="feedback" id="matchFeedback"></div>
+
+  <div class="quiz" data-key="q3" data-answer="a" data-explain="Ein Gerät kann mehrere Register besitzen. Die Gerätenummer identifiziert die Hardware; die Register- beziehungsweise Konfigurationsinformation identifiziert, welche Messgröße der konkrete Wert beschreibt.">
+    <h3>Warum reicht die Gerätenummer nicht zur fachlichen Identifikation eines Wertes?</h3>
+    <label class="option"><input type="radio" name="q3" value="a">A: Ein Messgerät kann mehrere Register und Messgrößen besitzen.</label>
+    <label class="option"><input type="radio" name="q3" value="b">B: Gerätenummern dürfen nie kommuniziert werden.</label>
+    <label class="option"><input type="radio" name="q3" value="c">C: Jeder Zähler misst automatisch alle MaLo eines Netzgebiets.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="prozess">
+  <h2>5. Der Weg vom Rohwert bis zur Rechnung</h2>
+  <p>Gehe den Prozess Schritt für Schritt durch. Die konkrete Kommunikation hängt von Sparte, Messausstattung, Marktrolle und Prozess ab; das fachliche Grundmuster bleibt jedoch stabil.</p>
+  <div class="stepper">
+    <div class="step-indicator" id="stepIndicator"></div>
+    <div class="step-card" id="stepCard"></div>
+    <div class="step-actions"><button class="btn secondary" id="prevStep">Zurück</button><button class="btn" id="nextStep">Nächster Schritt</button></div>
+  </div>
+
+  <div class="insight"><strong>MSCONS ist die Transporthülle für Mess- und Energiemengeninformationen.</strong> Für dein System ist aber nicht das Segmentformat die primäre Fachlichkeit. Primär ist: Welcher Wert zu welchem Objekt und Zeitraum, mit welcher Qualität und Version, wurde von wem für welchen Anwendungsfall veröffentlicht?</div>
+</section>
+
+<section id="reihenfolge">
+  <h2>6. Reihenfolgeaufgabe: Baue die Verarbeitungskette</h2>
+  <p>Die verfügbaren Schritte werden bei jedem Laden und Zurücksetzen <strong>zufällig gemischt</strong>. Klicke sie in der fachlich sinnvollsten Reihenfolge an. Ein Klick auf einen bereits gewählten Schritt entfernt ihn wieder.</p>
+  <div class="order-box">
+    <div class="order-options" id="orderOptions"></div>
+    <p class="random-note" id="shuffleInfo"></p>
+    <div class="order-selected" id="orderSelected">Noch kein Schritt gewählt.</div>
+    <button class="btn" id="checkOrder">Reihenfolge prüfen</button> <button class="btn ghost" id="resetOrder">Neu mischen</button>
+    <div class="feedback" id="orderFeedback"></div>
+  </div>
+</section>
+
+<section id="labore">
+  <h2>7. Rechenlabore: Strom und Gas</h2>
+  <div class="split">
+    <div class="lane">
+      <h3><span class="number">A</span>Strommenge aus Ständen</h3>
+      <p>Im einfachen direkten Messfall ergibt sich die Menge aus der Differenz der Registerstände, gegebenenfalls multipliziert mit einem Faktor.</p>
+      <div class="lab">
+        <div class="lab-grid">
+          <div class="field"><label for="powerStart">Anfangsstand kWh</label><input id="powerStart" type="number" step="0.001" value="22410.7"></div>
+          <div class="field"><label for="powerEnd">Endstand kWh</label><input id="powerEnd" type="number" step="0.001" value="23860.4"></div>
+          <div class="field"><label for="powerFactor">Messfaktor</label><input id="powerFactor" type="number" step="0.001" value="1"></div>
+        </div>
+        <button class="btn" id="calcPower">Strommenge berechnen</button>
+        <div class="result-card" id="powerResult"></div>
+      </div>
+    </div>
+    <div class="lane">
+      <h3><span class="number">B</span>Gasmenge in kWh</h3>
+      <p>Ein Gaszähler zeigt typischerweise Volumen in m³. Für die Energiemenge werden Volumendifferenz, Zustandszahl und Brennwert verwendet.</p>
+      <div class="lab">
+        <div class="lab-grid">
+          <div class="field"><label for="gasStart">Anfangsstand m³</label><input id="gasStart" type="number" step="0.001" value="12540"></div>
+          <div class="field"><label for="gasEnd">Endstand m³</label><input id="gasEnd" type="number" step="0.001" value="13790"></div>
+          <div class="field"><label for="gasZ">Zustandszahl</label><input id="gasZ" type="number" step="0.0001" value="0.95"></div>
+          <div class="field"><label for="gasH">Brennwert kWh/m³</label><input id="gasH" type="number" step="0.0001" value="11.2"></div>
+        </div>
+        <button class="btn" id="calcGas">Gasmenge berechnen</button>
+        <div class="result-card" id="gasResult"></div>
+      </div>
+    </div>
+  </div>
+  <div class="warning insight"><strong>Lernmodell:</strong> Die Rechner zeigen das Grundprinzip. Produktiv sind unter anderem gültige Zeiträume, Abgrenzungen, Messfaktoren, Rundungsregeln, Brennwertperioden und die jeweils maßgeblichen Markt- und Messregeln zu berücksichtigen.</div>
+
+  <div class="quiz" data-key="q4" data-answer="c" data-explain="Der Gaszähler erfasst Volumen. Die abrechnungsrelevante Energie in kWh wird aus der Volumendifferenz unter Einbeziehung von Zustandszahl und Brennwert abgeleitet.">
+    <h3>Warum kann der Gaslieferant die m³-Differenz nicht direkt als kWh abrechnen?</h3>
+    <label class="option"><input type="radio" name="q4" value="a">A: Weil Gaszähler nur Preise anzeigen.</label>
+    <label class="option"><input type="radio" name="q4" value="b">B: Weil m³ und kWh identische Einheiten sind.</label>
+    <label class="option"><input type="radio" name="q4" value="c">C: Weil aus dem gemessenen Volumen erst die Energiemenge abgeleitet werden muss.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="qualitaet">
+  <h2>8. Messwertqualität: „Wert vorhanden“ reicht nicht</h2>
+  <p>Ein robustes System trennt mindestens vier Dimensionen:</p>
+  <div class="grid">
+    <div class="mini"><span class="badge">Quelle</span><strong>Woher stammt der Wert?</strong><p>Fernauslesung, Vor-Ort-Ablesung, Kundenablesung, Berechnung oder Schätzung.</p></div>
+    <div class="mini"><span class="badge">Wertstatus</span><strong>Welche fachliche Art?</strong><p>Beispielsweise wahrer, vorläufiger oder Ersatzwert – abhängig vom konkreten Regelwerk und Anwendungsfall.</p></div>
+    <div class="mini"><span class="badge">Plausibilität</span><strong>Ist der Wert konsistent?</strong><p>Monotonie, Sprungprüfung, Gerätezuordnung, Zeitraum, Register und Messkonzept.</p></div>
+    <div class="mini"><span class="badge">Freigabe</span><strong>Darf Billing ihn verwenden?</strong><p>Technisch valide ist nicht automatisch fachlich freigegeben.</p></div>
+  </div>
+
+  <h3>Beispiel: Kundenablesung</h3>
+  <div class="diagram">MeasurementObservation
+  value:          23.860,4
+  unit:           kWh
+  source:         CUSTOMER_SELF_READING
+  observedAt:     2026-09-30T18:12+02:00
+  receivedAt:     2026-09-30T18:14+02:00
+  object:         MeterRegister 1.8.0 / Gerät Z-4711
+  plausibility:   PENDING
+  marketStatus:   NOT_YET_PUBLISHED
+  billingUse:     BLOCKED</div>
+  <p>Nach erfolgreicher Prüfung kann derselbe fachliche Sachverhalt weiterverarbeitet werden. Du solltest aber nicht die Rohbeobachtung verändern, sondern einen neuen Validierungs- oder Ableitungsstand erzeugen.</p>
+
+  <div class="quiz" data-key="q5" data-answer="b" data-explain="Die Kundenablesung ist eine wertvolle Beobachtung mit klarer Provenienz. Ob sie als abrechnungsfähiger Wert verwendet werden darf, hängt von Prüfung, Prozess und späteren Marktinformationen ab.">
+    <h3>Wie sollte dein System eine Kundenablesung behandeln?</h3>
+    <label class="option"><input type="radio" name="q5" value="a">A: Sofort als endgültigen Marktwert speichern und alle anderen Werte löschen.</label>
+    <label class="option"><input type="radio" name="q5" value="b">B: Als unveränderte Beobachtung speichern, prüfen und ihren weiteren Status nachvollziehbar führen.</label>
+    <label class="option"><input type="radio" name="q5" value="c">C: Grundsätzlich ignorieren.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="korrektur">
+  <h2>9. Korrekturen: Warum Überschreiben gefährlich ist</h2>
+  <p>Am 2. Oktober trifft ein validierter Wert des Messstellenbetreibers ein: <strong>23.842,4 kWh</strong> statt der Kundenablesung von <strong>23.860,4 kWh</strong>. Die Differenz beträgt 18 kWh.</p>
+
+  <div class="version-list">
+    <div class="version superseded"><span class="vtag">Version 1</span><div><strong>23.860,4 kWh</strong><br><small>Kundenablesung, eingegangen am 30.09., zunächst für eine vorläufige Ableitung verwendet.</small></div><span class="status">abgelöst</span></div>
+    <div class="version active"><span class="vtag">Version 2</span><div><strong>23.842,4 kWh</strong><br><small>Später eingegangener validierter Marktwert; referenziert die fachliche Korrektur des Endstands.</small></div><span class="status">aktiv</span></div>
+  </div>
+
+  <div class="lab">
+    <h3 style="margin-top:0">Korrekturwirkung simulieren</h3>
+    <div class="lab-grid">
+      <div class="field"><label for="corrStart">Anfangsstand kWh</label><input id="corrStart" type="number" step="0.001" value="22410.7"></div>
+      <div class="field"><label for="corrOld">Zunächst verwendeter Endstand</label><input id="corrOld" type="number" step="0.001" value="23860.4"></div>
+      <div class="field"><label for="corrNew">Korrigierter Endstand</label><input id="corrNew" type="number" step="0.001" value="23842.4"></div>
+      <div class="field"><label for="corrPrice">Arbeitspreis €/kWh</label><input id="corrPrice" type="number" step="0.0001" value="0.35"></div>
+    </div>
+    <button class="btn" id="calcCorrection">Auswirkung berechnen</button>
+    <div class="result-card" id="correctionResult"></div>
+  </div>
+
+  <div class="insight"><strong>Architekturregel:</strong> Eine Korrektur ersetzt nicht die Geschichte. Sie erzeugt eine neue Version, kennzeichnet die alte als überholt, stößt eine Impact-Analyse an und führt bei bereits ausgestellter Rechnung gegebenenfalls zu einer nachvollziehbaren Rechnungskorrektur.</div>
+
+  <div class="quiz" data-key="q6" data-answer="c" data-explain="Historisierung, Referenz auf den ersetzten Wert und eine Impact-Analyse sind notwendig, damit Marktkommunikation, Billing und Audit dieselbe Korrektur nachvollziehen können.">
+    <h3>Was ist die robusteste Reaktion auf einen korrigierten Messwert?</h3>
+    <label class="option"><input type="radio" name="q6" value="a">A: Den alten Datenbanksatz still überschreiben.</label>
+    <label class="option"><input type="radio" name="q6" value="b">B: Nur einen CRM-Kommentar anlegen.</label>
+    <label class="option"><input type="radio" name="q6" value="c">C: Neue Version speichern, Vorgänger referenzieren und betroffene Ableitungen sowie Rechnungen prüfen.</label>
+    <button class="btn check">Antwort prüfen</button><div class="feedback"></div>
+  </div>
+</section>
+
+<section id="architektur">
+  <h2>10. Architektur für dein Abrechnungssystem</h2>
+  <p>Ich würde nicht mit einer einzigen Tabelle <span class="code">meter_readings</span> beginnen, aus der direkt Rechnungen rechnen. Besser ist eine explizite Verarbeitungskette.</p>
+
+  <div class="state-grid">
+    <div class="state"><h3>1. Beobachtung</h3><div class="state-flow"><span class="state-node">received</span><span class="arrow">→</span><span class="state-node">parsed</span><span class="arrow">→</span><span class="state-node">identified</span></div></div>
+    <div class="state"><h3>2. Prüfung</h3><div class="state-flow"><span class="state-node">pending</span><span class="arrow">→</span><span class="state-node">plausible</span><span class="arrow">/</span><span class="state-node">clarification</span></div></div>
+    <div class="state"><h3>3. Ableitung</h3><div class="state-flow"><span class="state-node">inputs ready</span><span class="arrow">→</span><span class="state-node">calculated</span><span class="arrow">→</span><span class="state-node">published</span></div></div>
+    <div class="state"><h3>4. Billing</h3><div class="state-flow"><span class="state-node">candidate</span><span class="arrow">→</span><span class="state-node">accepted</span><span class="arrow">→</span><span class="state-node">snapshotted</span></div></div>
+  </div>
+
+  <h3>Empfohlene Kernobjekte</h3>
+  <table class="value-table">
+    <thead><tr><th>Objekt</th><th>Aufgabe</th><th>Wichtige Felder</th></tr></thead>
+    <tbody>
+      <tr><td><strong>MeasurementObservation</strong></td><td>Unveränderte eingegangene oder erfasste Beobachtung.</td><td>objectRef, register/configurationRef, value, unit, observedAt, receivedAt, source, payloadRef</td></tr>
+      <tr><td><strong>MeasurementAssessment</strong></td><td>Prüfung und fachliche Einordnung.</td><td>observationId, plausibility, status, reasons, assessedAt, rulesetVersion</td></tr>
+      <tr><td><strong>EnergyQuantityDerivation</strong></td><td>Nachvollziehbare Berechnung einer Zeitraum-Menge.</td><td>period, inputs, formula, factor, result, rulesetVersion</td></tr>
+      <tr><td><strong>MarketValuePublication</strong></td><td>Was wurde welchem Marktpartner in welchem Anwendungsfall mitgeteilt?</td><td>messageRef, recipient, processId, valueVersion, publishedAt</td></tr>
+      <tr><td><strong>BillingQuantitySnapshot</strong></td><td>Unveränderliche Grundlage einer konkreten Rechnung.</td><td>invoicePeriod, quantityVersion, priceVersion, acceptedAt, invoiceRef</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Die drei Zeiten</h3>
+  <div class="grid">
+    <div class="mini"><span class="badge">Valid Time</span><strong>Wann gilt der Wert fachlich?</strong><p>Messzeitpunkt oder Beginn und Ende des Messintervalls.</p></div>
+    <div class="mini"><span class="badge">Transaction Time</span><strong>Wann wusste dein System davon?</strong><p>Eingangs-, Verarbeitungs- und Veröffentlichungszeitpunkte.</p></div>
+    <div class="mini"><span class="badge">Billing Snapshot</span><strong>Welche Version nutzte die Rechnung?</strong><p>Die Rechnung muss auf eine konkrete, später nicht still veränderbare Datengrundlage zeigen.</p></div>
+  </div>
+
+  <h3>Möglicher Event-Stream</h3>
+  <div class="event-stream">
+    <div class="event"><code>MeasurementReceived</code><small>Rohinformation mit Nachricht, Absender und unverändertem Payload ist eingegangen.</small></div>
+    <div class="event"><code>MeasurementIdentified</code><small>Wert wurde einem zeitlich gültigen Objekt-, Register- oder Konfigurationstupel zugeordnet.</small></div>
+    <div class="event"><code>MeasurementValidated</code><small>Plausibilitäts- und fachliche Prüfungen wurden mit versioniertem Regelwerk abgeschlossen.</small></div>
+    <div class="event"><code>EnergyQuantityDerived</code><small>Eine Zeitraum-Menge wurde aus beobachteten oder aggregierten Eingangswerten berechnet.</small></div>
+    <div class="event"><code>BillingQuantityAccepted</code><small>Billing hat eine konkrete Mengen-Version für einen Zeitraum freigegeben.</small></div>
+    <div class="event"><code>MeasurementCorrected</code><small>Ein neuer Wert löst Impact-Analyse für Ableitungen, Marktveröffentlichungen und Rechnungen aus.</small></div>
+  </div>
+
+  <div class="danger insight"><strong>Anti-Pattern:</strong> „Die neueste Zahl gewinnt.“ Ohne Unterscheidung von Messzeit, Empfangszeit, Qualität, Version und fachlicher Priorität kann ein später eingegangener schlechter Wert einen früheren korrekten Wert verdrängen.</div>
+</section>
+
+<section id="faelle">
+  <h2>11. Drei typische Fehlerfälle</h2>
+  <div class="scenario-grid">
+    <div class="scenario"><button>Fall A: Endstand kleiner als Anfangsstand</button><div class="answer"><strong>Nicht sofort negativer Verbrauch.</strong> Prüfe Gerätewechsel, Zählerüberlauf, falsches Register, falsche Zuordnung, Eingabefehler oder Korrekturhistorie.</div></div>
+    <div class="scenario"><button>Fall B: Lastgang hat am Zeitumstellungstag „zu viele“ Werte</button><div class="answer"><strong>Zeitmodell prüfen.</strong> Lokale Zeit, UTC-Offset, Sommer-/Winterzeit und Intervallgrenzen müssen explizit modelliert werden. Nicht blind auf „96 Werte pro Tag“ prüfen.</div></div>
+    <div class="scenario"><button>Fall C: Eine MSCONS passt zu keiner bekannten OBIS-/Konfigurationszuordnung</button><div class="answer"><strong>Kein Raten.</strong> Nachricht fachlich ablehnen oder klären, Stammdatenreihenfolge und Gültigkeitszeitraum prüfen und den unveränderten Eingang revisionsfähig behalten.</div></div>
+  </div>
+</section>
+
+<section id="test">
+  <h2>12. Abschlusstest</h2>
+  <p>Der Test enthält zehn Fragen. Die Auswertung erscheint direkt darunter.</p>
+  <div id="finalQuestions"></div>
+  <button class="btn blue" id="evaluateFinal">Test auswerten</button>
+  <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+  <div class="score" id="finalScore">Noch nicht ausgewertet.</div>
+  <div class="feedback" id="finalFeedback"></div>
+</section>
+
+<section id="transfer">
+  <h2>13. Transfer auf dein System</h2>
+  <p>Suche in deinem aktuellen Datenmodell die Stelle, an der eine Rechnungsmenge entsteht. Beantworte für eine konkrete Rechnung:</p>
+  <div class="grid">
+    <div class="mini"><strong>Provenienz</strong><p>Aus welchen ursprünglichen Beobachtungen wurde die Menge abgeleitet?</p></div>
+    <div class="mini"><strong>Zeit</strong><p>Welche Messperiode und welche System-Eingangszeitpunkte gelten?</p></div>
+    <div class="mini"><strong>Qualität</strong><p>Welche Quelle, welcher Status und welche Prüfentscheidung wurden verwendet?</p></div>
+    <div class="mini"><strong>Version</strong><p>Welche Werteversion war bei Rechnungserstellung aktiv?</p></div>
+    <div class="mini"><strong>Regelwerk</strong><p>Welche Formel, Stammdaten- und Prozessversion führte zum Ergebnis?</p></div>
+    <div class="mini"><strong>Korrektur</strong><p>Welche Objekte und Belege müssten bei einem neuen Messwert neu bewertet werden?</p></div>
+  </div>
+  <div class="success insight">Kannst du diese sechs Fragen maschinell und revisionsfähig beantworten, besitzt du bereits einen sehr starken Kern für Messwertverarbeitung und Abrechnung.</div>
+</section>
+
+<section id="quellen">
+  <h2>Fachliche Quellen und Einordnung</h2>
+  <p>Die Lektion vermittelt das fachliche Grundmodell. Für eine produktive Implementierung sind immer die für den jeweiligen Umsetzungszeitpunkt verbindlichen Prozess- und Formatdokumente maßgeblich.</p>
+  <div class="source-list">
+    <div class="source"><strong>Bundesnetzagentur – Mitteilung Nr. 54</strong><br>Verbindliche Nachrichtentypversionen ab 01.04.2026, darunter MSCONS AHB 3.1g und die OBIS-Codeliste 2.5c.<br><a href="https://www.bundesnetzagentur.de/DE/Beschlusskammern/BK06/BK6_83_Zug_Mess/835_mitteilungen_datenformate/Mitteilung_54/Mitteilung_Nr_54.html" target="_blank" rel="noopener">Quelle öffnen</a></div>
+    <div class="source"><strong>BDEW MaKo – Dokumentübersicht</strong><br>Zentrale Übersicht aktuell und zukünftig gültiger EDI@Energy-Dokumente.<br><a href="https://www.bdew-mako.de/documents" target="_blank" rel="noopener">Quelle öffnen</a></div>
+    <div class="source"><strong>Bundesnetzagentur – Gasrechnung</strong><br>Erläuterung der Umrechnung: kWh = verbrauchte m³ × Brennwert × Zustandszahl.<br><a href="https://www.bundesnetzagentur.de/DE/Vportal/Energie/RechnungenSperrungen/Rechnungen-table.html?r=1" target="_blank" rel="noopener">Quelle öffnen</a></div>
+  </div>
+</section>
+</main>
+<footer>Lektion 8 · Marktkommunikation für Softwareentwickler · Interaktive Lernfassung</footer>
+
+<script>
+(() => {
+  const quizScores = {};
+  document.querySelectorAll('.quiz .check').forEach(button => {
+    button.addEventListener('click', () => {
+      const quiz = button.closest('.quiz');
+      const selected = quiz.querySelector('input[type="radio"]:checked');
+      const feedback = quiz.querySelector('.feedback');
+      if (!selected) {
+        feedback.className = 'feedback bad';
+        feedback.textContent = 'Bitte wähle zuerst eine Antwort.';
+        return;
+      }
+      const correct = selected.value === quiz.dataset.answer;
+      quizScores[quiz.dataset.key] = correct;
+      feedback.className = 'feedback ' + (correct ? 'good' : 'bad');
+      feedback.textContent = (correct ? 'Richtig. ' : 'Noch nicht. ') + quiz.dataset.explain;
+    });
+  });
+
+  const steps = [
+    {actor:'MSB / Quelle', tag:'Erfassung', risk:'Objektbezug', title:'Messwert wird erfasst', text:'Ein Wert entsteht durch Fernauslesung, Vor-Ort-Ablesung, Kundenablesung oder ein zulässiges Ersatzwertverfahren.', architecture:'Rohbeobachtung unverändert mit Quelle, Zeitstempel und Payload-Referenz speichern. Noch keine Rechnungsmenge erzeugen.'},
+    {actor:'Empfänger', tag:'Identifikation', risk:'Stammdaten', title:'Wert wird fachlich zugeordnet', text:'Gerät, Register beziehungsweise Konfiguration, Messlokation, Zeitraum und beteiligte Marktrollen müssen zum Wert passen.', architecture:'Zeitabhängige Stammdaten verwenden. Die heutige Gerätezuordnung darf nicht rückwirkend auf einen alten Messzeitpunkt angewendet werden.'},
+    {actor:'MSB / NB / LF', tag:'Prüfung', risk:'Plausibilität', title:'Qualität und Plausibilität werden bewertet', text:'Status, Quelle, Monotonie, Wertebereich, Zeitintervall, Vollständigkeit und Messkonzept werden geprüft.', architecture:'Prüfergebnis als eigenes versioniertes Objekt führen, nicht als überschreibbares Boolean am Rohwert.'},
+    {actor:'Fachservice', tag:'Ableitung', risk:'Formel', title:'Energiemenge wird gebildet', text:'Aus Zählerstandsdifferenz, Zeitreihensumme, Gasumrechnung oder Messkonzept entsteht eine Energiemenge für einen definierten Zeitraum.', architecture:'Input-Versionen, Formel, Faktoren, Rundung und Regelwerksversion in einer Derivation speichern.'},
+    {actor:'Marktpartner', tag:'MSCONS', risk:'Anwendungsfall', title:'Wert wird marktlich veröffentlicht', text:'Der fachliche Wert wird im passenden Anwendungsfall an berechtigte Marktpartner kommuniziert. Absender, Empfänger, Objekt, Zeitraum und Version sind Teil des Kontexts.', architecture:'Transportnachricht und fachlichen Wert trennen, aber über MessageRef und Publication-Objekt revisionsfähig verbinden.'},
+    {actor:'Lieferant', tag:'Readiness', risk:'Vollständigkeit', title:'Abrechnungsfähigkeit wird geprüft', text:'Lieferzeitraum, Mengen, Preisperioden, Netzdaten, Steuern und weitere Voraussetzungen müssen lückenlos und widerspruchsfrei vorliegen.', architecture:'Explizite BillingReadiness statt impliziter Prüfung beim Rechnungslauf.'},
+    {actor:'Billing', tag:'Snapshot', risk:'spätere Korrektur', title:'Rechnungsmenge wird fixiert', text:'Eine konkrete Mengen- und Preisversion wird als Grundlage der Rechnung referenziert.', architecture:'BillingQuantitySnapshot unveränderlich machen. Spätere Änderungen erzeugen Impact und gegebenenfalls Korrekturbelege.'}
+  ];
+  let stepIndex = 0;
+  const stepCard = document.getElementById('stepCard');
+  const stepIndicator = document.getElementById('stepIndicator');
+  function renderStep(){
+    stepIndicator.innerHTML = steps.map((_,i)=>`<span class="step-dot ${i<=stepIndex?'done':''}"></span>`).join('');
+    const s = steps[stepIndex];
+    stepCard.innerHTML = `<div class="step-meta"><span class="pill actor">${s.actor}</span><span class="pill">${s.tag}</span><span class="pill risk">Risiko: ${s.risk}</span></div><h3>${stepIndex+1}. ${s.title}</h3><p>${s.text}</p><div class="insight"><strong>Architekturbrille:</strong> ${s.architecture}</div>`;
+    document.getElementById('prevStep').disabled = stepIndex===0;
+    document.getElementById('nextStep').textContent = stepIndex===steps.length-1 ? 'Von vorn' : 'Nächster Schritt';
+  }
+  document.getElementById('prevStep').addEventListener('click',()=>{if(stepIndex>0){stepIndex--;renderStep();}});
+  document.getElementById('nextStep').addEventListener('click',()=>{stepIndex = stepIndex===steps.length-1 ? 0 : stepIndex+1;renderStep();});
+  renderStep();
+
+  function shuffle(array){
+    const a=[...array];
+    for(let i=a.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  const orderSteps = [
+    {id:'capture', text:'Messwert als Rohbeobachtung erfassen'},
+    {id:'identify', text:'Objekt, Register und Zeitraum zuordnen'},
+    {id:'validate', text:'Qualität und Plausibilität prüfen'},
+    {id:'derive', text:'Energiemenge nachvollziehbar ableiten'},
+    {id:'publish', text:'Marktwert im passenden Prozess veröffentlichen'},
+    {id:'ready', text:'Billing Readiness prüfen'},
+    {id:'snapshot', text:'Mengen-Version für die Rechnung fixieren'}
+  ];
+  const correctOrder = ['capture','identify','validate','derive','publish','ready','snapshot'];
+  let selectedOrder = [];
+  let poolOrder = [];
+  let shuffleCount = 0;
+  const orderOptions = document.getElementById('orderOptions');
+  const orderSelected = document.getElementById('orderSelected');
+  function renderOrder(){
+    orderOptions.innerHTML = poolOrder.map(id=>{
+      const s=orderSteps.find(x=>x.id===id);
+      return `<button class="order-option" data-id="${s.id}">${s.text}</button>`;
+    }).join('');
+    orderSelected.innerHTML = selectedOrder.length ? selectedOrder.map(id=>`<span class="order-token" data-id="${id}" title="Zum Entfernen anklicken">${orderSteps.find(s=>s.id===id).text}</span>`).join(' → ') : 'Noch kein Schritt gewählt.';
+    orderOptions.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+      selectedOrder.push(b.dataset.id);
+      poolOrder=poolOrder.filter(id=>id!==b.dataset.id);
+      document.getElementById('orderFeedback').className='feedback';
+      renderOrder();
+    }));
+    orderSelected.querySelectorAll('.order-token').forEach(token=>token.addEventListener('click',()=>{
+      const id=token.dataset.id;
+      selectedOrder=selectedOrder.filter(x=>x!==id);
+      const randomIndex=Math.floor(Math.random()*(poolOrder.length+1));
+      poolOrder.splice(randomIndex,0,id);
+      document.getElementById('orderFeedback').className='feedback';
+      renderOrder();
+    }));
+  }
+  function resetOrderTask(){
+    selectedOrder=[];
+    poolOrder=shuffle(orderSteps.map(s=>s.id));
+    shuffleCount++;
+    document.getElementById('shuffleInfo').textContent=`Mischung ${shuffleCount}: ${poolOrder.length} Schritte wurden zufällig angeordnet.`;
+    document.getElementById('orderFeedback').className='feedback';
+    renderOrder();
+  }
+  document.getElementById('checkOrder').addEventListener('click',()=>{
+    const fb=document.getElementById('orderFeedback');
+    const ok=selectedOrder.length===correctOrder.length && selectedOrder.every((v,i)=>v===correctOrder[i]);
+    fb.className='feedback '+(ok?'good':'bad');
+    if(ok){fb.textContent='Richtig. Du hast die dominante fachliche Verarbeitungskette aufgebaut.';return;}
+    if(selectedOrder.length<correctOrder.length){fb.textContent=`Es fehlen noch ${correctOrder.length-selectedOrder.length} Schritt(e).`;return;}
+    const firstWrong=selectedOrder.findIndex((v,i)=>v!==correctOrder[i]);
+    fb.textContent=`Noch nicht. Die erste Abweichung liegt an Position ${firstWrong+1}. Denke daran: Erst erfassen und identifizieren, dann bewerten und ableiten.`;
+  });
+  document.getElementById('resetOrder').addEventListener('click',resetOrderTask);
+  resetOrderTask();
+
+  const matchPairs = [
+    {id:'device', left:'Messgerät', right:'Konkrete Hardware mit Gerätenummer'},
+    {id:'register', left:'Register', right:'Messkanal wie Bezug, Einspeisung, HT oder NT'},
+    {id:'melo', left:'Messlokation', right:'Ort der messtechnischen Erfassung'},
+    {id:'malo', left:'Marktlokation', right:'Wirtschaftlich gelieferte oder eingespeiste Energiemenge'}
+  ];
+  let selectedLeft=null;
+  let matched=new Set();
+  const leftEl=document.getElementById('matchLeft');
+  const rightEl=document.getElementById('matchRight');
+  function renderMatching(){
+    leftEl.innerHTML=matchPairs.map(p=>`<button class="match-item ${matched.has(p.id)?'matched':''} ${selectedLeft===p.id?'selected':''}" data-side="left" data-id="${p.id}" ${matched.has(p.id)?'disabled':''}>${p.left}</button>`).join('');
+    const rightOrder=shuffle(matchPairs);
+    rightEl.innerHTML=rightOrder.map(p=>`<button class="match-item ${matched.has(p.id)?'matched':''}" data-side="right" data-id="${p.id}" ${matched.has(p.id)?'disabled':''}>${p.right}</button>`).join('');
+    leftEl.querySelectorAll('button:not([disabled])').forEach(b=>b.addEventListener('click',()=>{selectedLeft=b.dataset.id;renderMatching();}));
+    rightEl.querySelectorAll('button:not([disabled])').forEach(b=>b.addEventListener('click',()=>{
+      const fb=document.getElementById('matchFeedback');
+      if(!selectedLeft){fb.className='feedback bad';fb.textContent='Wähle zuerst links einen Begriff.';return;}
+      if(selectedLeft===b.dataset.id){matched.add(selectedLeft);selectedLeft=null;fb.className='feedback good';fb.textContent=matched.size===matchPairs.length?'Alle Zuordnungen sind richtig.':'Richtig zugeordnet.';renderMatching();}
+      else{b.classList.add('wrong');fb.className='feedback bad';fb.textContent='Diese Beschreibung gehört zu einem anderen Objekt.';setTimeout(()=>b.classList.remove('wrong'),350);}
+    }));
+  }
+  renderMatching();
+
+  const nf = new Intl.NumberFormat('de-DE',{maximumFractionDigits:3});
+  const money = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR'});
+  function finite(...values){return values.every(Number.isFinite);}
+  document.getElementById('calcPower').addEventListener('click',()=>{
+    const start=Number(document.getElementById('powerStart').value), end=Number(document.getElementById('powerEnd').value), factor=Number(document.getElementById('powerFactor').value);
+    const out=document.getElementById('powerResult');
+    if(!finite(start,end,factor) || factor<=0){out.innerHTML='<span class="badtext">Bitte gültige Zahlen und einen positiven Faktor eingeben.</span>';return;}
+    const diff=end-start, qty=diff*factor;
+    out.innerHTML=`<div class="result-line"><strong>Standdifferenz</strong><span class="${diff>=0?'ok':'badtext'}">${nf.format(diff)} kWh</span></div><div class="result-line"><strong>Messfaktor</strong><span>${nf.format(factor)}</span></div><div class="result-line"><strong>Abgeleitete Menge</strong><span class="${qty>=0?'ok':'badtext'}">${nf.format(qty)} kWh</span></div><div class="result-text">${diff<0?'Negativer Wert: Gerätewechsel, Überlauf, Register- oder Zuordnungsfehler prüfen.':'Rechnerisch plausibel; fachliche Qualität und Zeitraum bleiben separat zu prüfen.'}</div>`;
+  });
+  document.getElementById('calcPower').click();
+
+  document.getElementById('calcGas').addEventListener('click',()=>{
+    const start=Number(document.getElementById('gasStart').value), end=Number(document.getElementById('gasEnd').value), z=Number(document.getElementById('gasZ').value), h=Number(document.getElementById('gasH').value);
+    const out=document.getElementById('gasResult');
+    if(!finite(start,end,z,h) || z<=0 || h<=0){out.innerHTML='<span class="badtext">Bitte gültige Zahlen sowie positive Zustandszahl und Brennwert eingeben.</span>';return;}
+    const volume=end-start, qty=volume*z*h;
+    out.innerHTML=`<div class="result-line"><strong>Volumendifferenz</strong><span class="${volume>=0?'ok':'badtext'}">${nf.format(volume)} m³</span></div><div class="result-line"><strong>Umrechnungsfaktor</strong><span>${nf.format(z*h)} kWh/m³</span></div><div class="result-line"><strong>Abgeleitete Energie</strong><span class="${qty>=0?'ok':'badtext'}">${nf.format(qty)} kWh</span></div><div class="result-text">Formel im Lernmodell: m³ × Zustandszahl × Brennwert.</div>`;
+  });
+  document.getElementById('calcGas').click();
+
+  document.getElementById('calcCorrection').addEventListener('click',()=>{
+    const start=Number(document.getElementById('corrStart').value), oldEnd=Number(document.getElementById('corrOld').value), newEnd=Number(document.getElementById('corrNew').value), price=Number(document.getElementById('corrPrice').value);
+    const out=document.getElementById('correctionResult');
+    if(!finite(start,oldEnd,newEnd,price) || price<0){out.innerHTML='<span class="badtext">Bitte gültige Werte eingeben.</span>';return;}
+    const oldQty=oldEnd-start, newQty=newEnd-start, delta=newQty-oldQty, amount=delta*price;
+    out.innerHTML=`<div class="result-line"><strong>Alte Rechnungsmenge</strong><span>${nf.format(oldQty)} kWh</span></div><div class="result-line"><strong>Neue Rechnungsmenge</strong><span>${nf.format(newQty)} kWh</span></div><div class="result-line"><strong>Mengenänderung</strong><span class="${delta===0?'ok':delta<0?'warntext':'badtext'}">${delta>0?'+':''}${nf.format(delta)} kWh</span></div><div class="result-line"><strong>Reine Arbeitspreiswirkung</strong><span class="${amount===0?'ok':amount<0?'warntext':'badtext'}">${amount>0?'+':''}${money.format(amount)}</span></div><div class="result-text">Produktiv zusätzlich Grundpreisabgrenzung, Steuern, Netzentgelte und Beleglogik prüfen.</div>`;
+  });
+  document.getElementById('calcCorrection').click();
+
+  document.querySelectorAll('.scenario button').forEach(btn=>btn.addEventListener('click',()=>btn.parentElement.classList.toggle('open')));
+
+  const finalQuestions = [
+    {q:'1. Was ist ein Zählerstand?', options:['Eine kumulierte Registeranzeige zu einem Zeitpunkt','Immer eine fertige Rechnungsmenge','Eine Preisangabe'], a:0},
+    {q:'2. Was beschreibt eine Energiemenge?', options:['Nur eine Gerätenummer','Verbrauch oder Einspeisung in einem Zeitraum','Ausschließlich eine Kundenablesung'], a:1},
+    {q:'3. Warum muss ein Wert einem Register oder einer Konfiguration zugeordnet sein?', options:['Weil ein Gerät mehrere Messgrößen besitzen kann','Weil Register keine Einheiten haben','Weil jede MaLo nur einen Wert im Leben besitzt'], a:0},
+    {q:'4. Was ist ein Lastgang?', options:['Eine Liste offener Rechnungen','Eine Folge zeitlich geordneter Intervallwerte','Ein einmaliger Zählerwechsel'], a:1},
+    {q:'5. Was gilt für eine Kundenablesung?', options:['Sie ist wertlos','Sie ist eine Beobachtung mit Quelle und muss fachlich eingeordnet werden','Sie überschreibt automatisch jeden Marktwert'], a:1},
+    {q:'6. Wie entsteht im Lernmodell die Gasenergie?', options:['m³ + Brennwert + Zustandszahl','m³ × Brennwert × Zustandszahl','m³ ÷ Arbeitspreis'], a:1},
+    {q:'7. Wie sollte eine Messwertkorrektur modelliert werden?', options:['Als neue Version mit Referenz und Impact-Analyse','Durch stilles Überschreiben','Nur durch Löschen der Rechnung'], a:0},
+    {q:'8. Was ist Billing Readiness?', options:['Die technische Lesbarkeit einer EDIFACT-Datei','Die explizite Prüfung, ob alle abrechnungsrelevanten Grundlagen vollständig und belastbar sind','Ein Status des Zählers'], a:1},
+    {q:'9. Welche Zeiten sollten getrennt werden?', options:['Nur Kalenderjahr und Monat','Fachliche Gültigkeit, Systemwissen/Eingang und Rechnungs-Snapshot','Werktag und Wochenende'], a:1},
+    {q:'10. Was ist das wichtigste Architekturprinzip?', options:['Rechnung direkt aus dem neuesten Zahlenwert erzeugen','Provenienz und Versionen von der Beobachtung bis zur Rechnung erhalten','Alle Messdaten im Customer-Objekt speichern'], a:1}
+  ];
+  const fq=document.getElementById('finalQuestions');
+  fq.innerHTML=finalQuestions.map((item,i)=>`<div class="quiz"><h3>${item.q}</h3>${item.options.map((o,j)=>`<label class="option"><input type="radio" name="final${i}" value="${j}">${String.fromCharCode(65+j)}: ${o}</label>`).join('')}</div>`).join('');
+  document.getElementById('evaluateFinal').addEventListener('click',()=>{
+    let score=0, answered=0;
+    finalQuestions.forEach((item,i)=>{const s=document.querySelector(`input[name="final${i}"]:checked`);if(s){answered++;if(Number(s.value)===item.a)score++;}});
+    const pct=Math.round(score/finalQuestions.length*100);
+    document.getElementById('progressBar').style.width=pct+'%';
+    document.getElementById('finalScore').textContent=`${score} von ${finalQuestions.length} richtig (${answered} beantwortet)`;
+    const fb=document.getElementById('finalFeedback');
+    fb.className='feedback '+(pct>=80?'good':'bad');
+    fb.textContent=pct>=90?'Sehr stark. Du kannst Messwertverarbeitung bereits aus Fach- und Architektursicht erklären.':pct>=80?'Gute Basis. Prüfe besonders die Unterscheidung von Beobachtung, Ableitung und Billing-Snapshot.':pct>=60?'Solide, aber wiederhole Objektbezug, Wertqualität und Korrekturen.':'Gehe die vier Wertarten und die Verarbeitungskette noch einmal durch.';
+  });
+})();
+</script>
+
+<style>.course-home{position:fixed;right:18px;bottom:18px;z-index:9999;padding:11px 15px;border-radius:999px;background:#173f35;color:#fff!important;text-decoration:none;font:700 14px/1 system-ui;box-shadow:0 8px 24px #0003}.course-home:focus{outline:3px solid #f0b44d;outline-offset:3px}</style>
+<a class="course-home" href="index.html" aria-label="Zur Kursübersicht">← Kursübersicht</a>
+<script src="copy-narration.js"></script>
+</body>
+</html>
