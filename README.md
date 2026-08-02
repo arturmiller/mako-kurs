@@ -18,4 +18,6 @@ Dann `http://localhost:8000` öffnen.
 
 ## GitHub Pages
 
+Der Kurs ist unter <https://arturmiller.github.io/mako-kurs/> erreichbar.
+
 Der Workflow in `.github/workflows/pages.yml` veröffentlicht `docs/` bei jedem Push auf `main`. Im Repository unter **Settings → Pages → Source** einmalig **GitHub Actions** auswählen.
