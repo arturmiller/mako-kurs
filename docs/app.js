@@ -1,0 +1,19 @@
+const lessons=[
+['01','Warum Marktkommunikation?'],['02','Marktrollen und Verantwortung'],['03','MaLo, MeLo und Zähler'],['04','Lokationsbündel und Messkonzepte'],['05','Lieferbeginn beim Einzug'],['06','Lieferantenwechsel'],['07','Lieferende und Auszug'],['08','Vom Messwert zur Energiemenge'],['09','Vom Tarif zur Rechnung'],['10','MaBiS-Hub einordnen']
+];
+const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function renderLesson(d){
+ const root=document.querySelector('main'); document.title=`${d.no} · ${d.title} | MaKo Campus`;
+ const chapters=d.chapters.map(c=>`<section class="chapter"><span class="eyebrow">${escapeHtml(c.kicker||'Mentales Modell')}</span><h2>${escapeHtml(c.title)}</h2>${c.html}</section>`).join('');
+ const quizzes=d.quiz.map((q,i)=>`<div class="quiz" data-answer="${q.answer}"><span class="eyebrow">Kurztest ${i+1}</span><h3>${escapeHtml(q.question)}</h3>${q.options.map((o,j)=>`<button class="option" data-choice="${j}">${escapeHtml(o)}</button>`).join('')}<p class="feedback" aria-live="polite"></p></div>`).join('');
+ const sources=d.sources.map(s=>`<li><a href="${s[1]}" target="_blank" rel="noreferrer">${escapeHtml(s[0])}</a></li>`).join('');
+ root.innerHTML=`<header class="hero"><span class="eyebrow">Lektion ${d.no} · ${d.minutes} Minuten</span><h1>${escapeHtml(d.title)}</h1><p class="lede">${escapeHtml(d.lede)}</p><div class="meta"><span class="pill">Softwarearchitektur</span><span class="pill">Interaktiv</span><span class="pill">ohne Audio</span></div></header><section class="objectives"><h2>Danach kannst du …</h2><ul>${d.objectives.map(x=>`<li>${escapeHtml(x)}</li>`).join('')}</ul></section>${chapters}${quizzes}<section class="task"><span class="eyebrow">Architektur-Labor</span><h2>${escapeHtml(d.task.title)}</h2><p>${escapeHtml(d.task.prompt)}</p><button class="reveal">Musterlösung anzeigen</button><div class="answer">${d.task.answer}</div></section><section class="sourcebox"><strong>Primärquellen &amp; Vertiefung</strong><ul>${sources}</ul><p>Regelwerke ändern sich. Prüfe bei produktiven Entscheidungen immer die aktuell gültige Fassung.</p></section><nav class="lesson-nav">${d.prev?`<a href="${d.prev}.html">← Zurück</a>`:''}${d.next?`<a href="${d.next}.html">Weiter →</a>`:'<a href="index.html">Zur Übersicht →</a>'}</nav>`;
+ bind(d);
+}
+function bind(d){
+ document.querySelectorAll('.quiz').forEach(q=>q.querySelectorAll('.option').forEach(b=>b.addEventListener('click',()=>{if(q.dataset.done)return;q.dataset.done='1';const ok=b.dataset.choice===q.dataset.answer;b.classList.add(ok?'correct':'wrong');q.querySelector(`[data-choice="${q.dataset.answer}"]`).classList.add('correct');q.querySelector('.feedback').textContent=ok?'Richtig – das mentale Modell sitzt.':'Noch nicht. Die grün markierte Antwort trennt die Verantwortungen sauber.';updateProgress(d.no)})));
+ document.querySelector('.reveal').addEventListener('click',e=>{document.querySelector('.answer').classList.toggle('open');e.target.textContent=document.querySelector('.answer').classList.contains('open')?'Musterlösung ausblenden':'Musterlösung anzeigen'});
+}
+function updateProgress(no){const key=`mako-${no}`;const solved=document.querySelectorAll('.quiz[data-done]').length,total=document.querySelectorAll('.quiz').length;localStorage.setItem(key,String(solved));document.querySelector('.progress span').style.width=`${total?solved/total*100:0}%`;document.querySelector('.counter').textContent=`${solved}/${total}`;if(solved===total)localStorage.setItem(`${key}-done`,'1')}
+function init(){if(window.LESSON){document.body.insertAdjacentHTML('afterbegin','<div class="topbar"><div class="topbar-inner"><a class="brand" href="index.html">MaKo Campus</a><div class="progress"><span></span></div><span class="counter">0/2</span></div></div>');renderLesson(window.LESSON)}document.documentElement.classList.add('js')}
+document.addEventListener('DOMContentLoaded',init);
