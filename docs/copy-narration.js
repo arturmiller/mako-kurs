@@ -126,21 +126,24 @@
 
     const style = document.createElement('style');
     style.textContent = `
-      .narration-copy{max-width:920px;margin:1rem auto;border:1px solid #cfcfc5;border-radius:14px;background:#fffdf7;color:#17231f}
+      .narration-copy{width:min(1080px,calc(100% - 32px));margin:1rem auto;border:1px solid #d9e2ef;border-radius:14px;background:#fff;color:#172033}
       .narration-copy summary{display:flex;align-items:center;gap:1rem;padding:.7rem .8rem .7rem 1.1rem;cursor:pointer;font:750 16px/1.3 system-ui;list-style:none}
       .narration-copy summary::-webkit-details-marker{display:none}
       .narration-copy summary>span:first-child{margin-right:auto}
       .narration-tools{display:flex;align-items:center;gap:.7rem}
       .narration-copy[open] summary{border-bottom:1px solid #ddd9ce}
-      .narration-copy button{border:0;border-radius:10px;padding:.75rem 1rem;background:#145c47;color:white;font:700 15px/1 system-ui;cursor:pointer}
-      .narration-copy button:hover{background:#0f4938}.narration-copy [role=status]{font:700 14px/1.3 system-ui;color:#145c47}
+      .narration-copy button{border:0;border-radius:10px;padding:.75rem 1rem;background:var(--accent,#5b36c9);color:white;font:700 15px/1 system-ui;cursor:pointer}
+      .narration-copy button:hover{filter:brightness(.96)}.narration-copy [role=status]{font:700 14px/1.3 system-ui;color:var(--accent2,#0b6b63)}
       .narration-text{padding:1rem 1.2rem;white-space:pre-wrap;user-select:text;font:16px/1.7 system-ui}
       @media(max-width:600px){.narration-copy summary{align-items:flex-start;flex-wrap:wrap}.narration-tools{width:100%;justify-content:flex-end}.narration-copy [role=status]{flex:1}}
       @media print{.narration-copy{display:none}}
     `;
     document.head.appendChild(style);
 
-    const anchor = document.querySelector('.hero, header, main, .wrap');
+    const anchor = document.querySelector('.hero')
+      || document.querySelector('header')
+      || document.querySelector('main')
+      || document.querySelector('.wrap');
     if (anchor && anchor.matches('.hero, header')) anchor.insertAdjacentElement('afterend', control);
     else if (anchor) anchor.prepend(control);
     else document.body.prepend(control);
