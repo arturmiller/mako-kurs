@@ -1,4 +1,66 @@
 (function () {
+  const MESSAGE_TYPES = {
+    UTILMD: ['Utilities Master Data Message', 'Übermittelt Stammdaten und prozessbezogene Änderungen, etwa zu Marktpartnern, Lokationen oder Zuordnungen.'],
+    MSCONS: ['Metered Services Consumption Report Message', 'Übermittelt Messwerte, Zählerstände und Energiemengen zwischen Marktpartnern.'],
+    INVOIC: ['Invoice Message', 'Übermittelt elektronische Rechnungen, beispielsweise für Netznutzung oder energiewirtschaftliche Leistungen.'],
+    REMADV: ['Remittance Advice Message', 'Übermittelt die Zahlungs- oder Ablehnungsinformation zu einer Rechnung und kann Abweichungsgründe nennen.'],
+    APERAK: ['Application Error and Acknowledgement Message', 'Meldet Anwendungsfehler in einer syntaktisch lesbaren Nachricht.'],
+    CONTRL: ['Syntax and Service Report Message', 'Bestätigt oder beanstandet die syntaktische Verarbeitung eines EDIFACT-Interchanges oder einer Nachricht.']
+  };
+  const MESSAGE_TYPE_PATTERN = new RegExp(`\\b(${Object.keys(MESSAGE_TYPES).join('|')})\\b`, 'g');
+  let tooltipId = 0;
+
+  function annotateMessageTypes(root) {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE || root.matches('.message-term, script, style, textarea')) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!MESSAGE_TYPE_PATTERN.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+        MESSAGE_TYPE_PATTERN.lastIndex = 0;
+        return node.parentElement?.closest('.message-term, script, style, textarea')
+          ? NodeFilter.FILTER_REJECT
+          : NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const textNodes = [];
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+    textNodes.forEach((node) => {
+      const fragment = document.createDocumentFragment();
+      let cursor = 0;
+      node.nodeValue.replace(MESSAGE_TYPE_PATTERN, (match, type, offset) => {
+        fragment.append(node.nodeValue.slice(cursor, offset));
+        const [name, description] = MESSAGE_TYPES[type];
+        const term = document.createElement('span');
+        const id = `message-tooltip-${++tooltipId}`;
+        term.className = 'message-term';
+        term.tabIndex = 0;
+        term.title = `${name}: ${description}`;
+        term.setAttribute('aria-describedby', id);
+        term.append(type);
+        const tooltip = document.createElement('span');
+        tooltip.className = 'message-tooltip';
+        tooltip.id = id;
+        tooltip.setAttribute('role', 'tooltip');
+        tooltip.innerHTML = `<strong>${name}</strong><span>${description}</span>`;
+        term.append(tooltip);
+        fragment.append(term);
+        cursor = offset + match.length;
+        return match;
+      });
+      fragment.append(node.nodeValue.slice(cursor));
+      node.replaceWith(fragment);
+    });
+  }
+
+  function initMessageTooltips() {
+    const content = document.querySelector('main, article, .wrap');
+    if (!content) return;
+    annotateMessageTypes(content);
+    new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+      if (node.nodeType === Node.ELEMENT_NODE) annotateMessageTypes(node);
+      else if (node.nodeType === Node.TEXT_NODE && node.parentElement) annotateMessageTypes(node.parentElement);
+    }))).observe(content, {childList: true, subtree: true});
+  }
+
   const EXCLUDED = [
     '.quiz', '.final', '.finalq', '.score-box', '.matching', '.order-box',
     '.sourcebox', '.lesson-nav', '.narration-copy', '.objectives', '#ziele',
@@ -135,8 +197,11 @@
       .narration-copy button{border:0;border-radius:10px;padding:.75rem 1rem;background:var(--accent,#5b36c9);color:white;font:700 15px/1 system-ui;cursor:pointer}
       .narration-copy button:hover{filter:brightness(.96)}.narration-copy [role=status]{font:700 14px/1.3 system-ui;color:var(--accent2,#0b6b63)}
       .narration-text{padding:1rem 1.2rem;white-space:pre-wrap;user-select:text;font:16px/1.7 system-ui}
+      .message-term{position:relative;display:inline-block;border-bottom:2px dotted currentColor;font-weight:750;cursor:help;outline-offset:3px}
+      .message-tooltip{position:absolute;z-index:100;left:50%;bottom:calc(100% + 9px);width:min(330px,80vw);padding:12px 14px;border-radius:12px;background:#172033;color:#fff;box-shadow:0 12px 34px rgba(15,23,42,.25);font:14px/1.45 system-ui;text-align:left;white-space:normal;letter-spacing:normal;text-transform:none;opacity:0;visibility:hidden;pointer-events:none;transform:translate(-50%,5px);transition:opacity .15s,transform .15s,visibility .15s}
+      .message-tooltip::after{content:'';position:absolute;top:100%;left:50%;margin-left:-6px;border:6px solid transparent;border-top-color:#172033}.message-tooltip strong,.message-tooltip span{display:block}.message-tooltip strong{margin-bottom:4px;color:#d9f0e6}.message-term:hover>.message-tooltip,.message-term:focus>.message-tooltip,.message-term:focus-visible>.message-tooltip{opacity:1;visibility:visible;transform:translate(-50%,0)}
       @media(max-width:600px){.narration-copy summary{align-items:flex-start;flex-wrap:wrap}.narration-tools{width:100%;justify-content:flex-end}.narration-copy [role=status]{flex:1}}
-      @media print{.narration-copy{display:none}}
+      @media print{.narration-copy,.message-tooltip{display:none}.message-term{border:0}}
     `;
     document.head.appendChild(style);
 
@@ -166,8 +231,9 @@
 
   window.initNarrationCopy = initNarrationCopy;
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNarrationCopy);
+    document.addEventListener('DOMContentLoaded', () => { initMessageTooltips(); initNarrationCopy(); });
   } else {
+    initMessageTooltips();
     initNarrationCopy();
   }
 })();
